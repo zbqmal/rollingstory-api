@@ -1,4 +1,8 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
@@ -62,10 +66,7 @@ export class AuthService {
     // Find user by email or username
     const user = await this.prisma.user.findFirst({
       where: {
-        OR: [
-          { email: dto.emailOrUsername },
-          { username: dto.emailOrUsername },
-        ],
+        OR: [{ email: dto.emailOrUsername }, { username: dto.emailOrUsername }],
       },
     });
 

@@ -3,10 +3,10 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import type { User } from '@prisma/client';
 
 describe('AuthController', () => {
   let controller: AuthController;
-  let service: AuthService;
 
   const mockAuthService = {
     register: jest.fn(),
@@ -26,7 +26,6 @@ describe('AuthController', () => {
     }).compile();
 
     controller = module.get<AuthController>(AuthController);
-    service = module.get<AuthService>(AuthService);
   });
 
   afterEach(() => {
@@ -42,7 +41,12 @@ describe('AuthController', () => {
       };
 
       const expectedResult = {
-        user: { id: 'user-id', email: registerDto.email, username: registerDto.username, createdAt: new Date() },
+        user: {
+          id: 'user-id',
+          email: registerDto.email,
+          username: registerDto.username,
+          createdAt: new Date(),
+        },
         token: 'jwt-token',
       };
 
@@ -50,7 +54,7 @@ describe('AuthController', () => {
 
       const result = await controller.register(registerDto);
 
-      expect(service.register).toHaveBeenCalledWith(registerDto);
+      expect(mockAuthService.register).toHaveBeenCalledWith(registerDto);
       expect(result).toEqual(expectedResult);
     });
   });
@@ -63,7 +67,12 @@ describe('AuthController', () => {
       };
 
       const expectedResult = {
-        user: { id: 'user-id', email: 'test@example.com', username: 'testuser', createdAt: new Date() },
+        user: {
+          id: 'user-id',
+          email: 'test@example.com',
+          username: 'testuser',
+          createdAt: new Date(),
+        },
         token: 'jwt-token',
       };
 
@@ -71,17 +80,20 @@ describe('AuthController', () => {
 
       const result = await controller.login(loginDto);
 
-      expect(service.login).toHaveBeenCalledWith(loginDto);
+      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto);
       expect(result).toEqual(expectedResult);
     });
   });
 
   describe('getMe', () => {
     it('should return current user', async () => {
-      const mockUser: any = {
+      const mockUser: User = {
         id: 'user-id',
         email: 'test@example.com',
         username: 'testuser',
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
       };
 
       const expectedResult = {
@@ -95,7 +107,7 @@ describe('AuthController', () => {
 
       const result = await controller.getMe(mockUser);
 
-      expect(service.getCurrentUser).toHaveBeenCalledWith(mockUser.id);
+      expect(mockAuthService.getCurrentUser).toHaveBeenCalledWith(mockUser.id);
       expect(result).toEqual(expectedResult);
     });
   });

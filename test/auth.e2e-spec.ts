@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
@@ -21,7 +24,7 @@ describe('Auth (e2e)', () => {
         transform: true,
       }),
     );
-    
+
     await app.init();
 
     prisma = app.get<PrismaService>(PrismaService);
@@ -59,13 +62,11 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 409 if email already exists', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'password123',
-        });
+      await request(app.getHttpServer()).post('/auth/register').send({
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'password123',
+      });
 
       return request(app.getHttpServer())
         .post('/auth/register')
@@ -78,13 +79,11 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 409 if username already exists', async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'password123',
-        });
+      await request(app.getHttpServer()).post('/auth/register').send({
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'password123',
+      });
 
       return request(app.getHttpServer())
         .post('/auth/register')
@@ -110,13 +109,11 @@ describe('Auth (e2e)', () => {
 
   describe('/auth/login (POST)', () => {
     beforeEach(async () => {
-      await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          email: 'test@example.com',
-          username: 'testuser',
-          password: 'password123',
-        });
+      await request(app.getHttpServer()).post('/auth/register').send({
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'password123',
+      });
     });
 
     it('should login with email', () => {
@@ -196,9 +193,7 @@ describe('Auth (e2e)', () => {
     });
 
     it('should return 401 without token', () => {
-      return request(app.getHttpServer())
-        .get('/auth/me')
-        .expect(401);
+      return request(app.getHttpServer()).get('/auth/me').expect(401);
     });
 
     it('should return 401 with invalid token', () => {
