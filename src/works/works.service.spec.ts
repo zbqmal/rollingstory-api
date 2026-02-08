@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { WorksService } from './works.service';
@@ -324,9 +325,9 @@ describe('WorksService', () => {
     it('should throw ForbiddenException if user is not owner', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
 
-      await expect(
-        service.remove('work-1', 'different-user'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.remove('work-1', 'different-user')).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(mockPrismaService.work.delete).not.toHaveBeenCalled();
     });
   });

@@ -13,7 +13,6 @@ describe('Works (e2e)', () => {
   let authToken: string;
   let userId: string;
   let anotherAuthToken: string;
-  let anotherUserId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -65,7 +64,6 @@ describe('Works (e2e)', () => {
         password: 'password123',
       });
     anotherAuthToken = anotherRegisterRes.body.token;
-    anotherUserId = anotherRegisterRes.body.user.id;
   });
 
   describe('/works (POST)', () => {
