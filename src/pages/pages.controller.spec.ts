@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { PagesController } from './pages.controller';
 import { PagesService } from './pages.service';
@@ -66,11 +65,9 @@ describe('PagesController', () => {
       });
 
       expect(result).toEqual(mockPage);
-      expect(mockPagesService.create).toHaveBeenCalledWith(
-        'work-1',
-        'user-1',
-        { content: 'Test content' },
-      );
+      expect(mockPagesService.create).toHaveBeenCalledWith('work-1', 'user-1', {
+        content: 'Test content',
+      });
     });
   });
 
@@ -107,11 +104,9 @@ describe('PagesController', () => {
       });
 
       expect(result).toEqual(updatedPage);
-      expect(mockPagesService.update).toHaveBeenCalledWith(
-        'page-1',
-        'user-1',
-        { content: 'Updated content' },
-      );
+      expect(mockPagesService.update).toHaveBeenCalledWith('page-1', 'user-1', {
+        content: 'Updated content',
+      });
     });
   });
 

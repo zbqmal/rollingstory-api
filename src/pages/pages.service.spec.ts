@@ -115,9 +115,7 @@ describe('PagesService', () => {
         authorId: 'user-2',
         collaborators: [{ userId: 'user-1' }],
       };
-      mockPrismaService.work.findUnique.mockResolvedValue(
-        workWithCollaborator,
-      );
+      mockPrismaService.work.findUnique.mockResolvedValue(workWithCollaborator);
       mockPrismaService.page.findFirst.mockResolvedValue(null);
       mockPrismaService.page.create.mockResolvedValue(mockPage);
 
@@ -321,6 +319,7 @@ describe('PagesService', () => {
             update: jest.fn(),
           },
         };
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
         return await callback(tx);
       });
 

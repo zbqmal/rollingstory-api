@@ -11,7 +11,6 @@ describe('Pages (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let authToken: string;
-  let userId: string;
   let anotherAuthToken: string;
   let anotherUserId: string;
   let workId: string;
@@ -56,7 +55,6 @@ describe('Pages (e2e)', () => {
         password: 'password123',
       });
     authToken = registerRes.body.token;
-    userId = registerRes.body.user.id;
 
     // Create another test user
     const anotherRegisterRes = await request(app.getHttpServer())
@@ -334,7 +332,6 @@ describe('Pages (e2e)', () => {
   describe('/pages/:id (DELETE)', () => {
     let page1Id: string;
     let page2Id: string;
-    let page3Id: string;
 
     beforeEach(async () => {
       const res1 = await request(app.getHttpServer())
@@ -349,11 +346,10 @@ describe('Pages (e2e)', () => {
         .send({ content: 'Page 2' });
       page2Id = res2.body.id;
 
-      const res3 = await request(app.getHttpServer())
+      await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
         .set('Authorization', `Bearer ${authToken}`)
         .send({ content: 'Page 3' });
-      page3Id = res3.body.id;
     });
 
     it('should delete a page', () => {
