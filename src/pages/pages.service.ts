@@ -189,22 +189,13 @@ export class PagesService {
         where: { id: pageId },
       });
 
-      // Get all subsequent pages
-      const subsequentPages = await tx.page.findMany({
-        where: {
-          workId: page.workId,
-          pageNumber: { gt: page.pageNumber },
-        },
-        orderBy: { pageNumber: 'asc' },
-      });
-
-      // Decrement pageNumber of all subsequent pages
-      for (const subsequentPage of subsequentPages) {
-        await tx.page.update({
-          where: { id: subsequentPage.id },
-          data: { pageNumber: subsequentPage.pageNumber - 1 },
-        });
-      }
+      // Decrement pageNumber of all subsequent pages using a single query
+      await tx.$executeRaw`
+        UPDATE "Page"
+        SET "pageNumber" = "pageNumber" - 1
+        WHERE "workId" = ${page.workId}
+        AND "pageNumber" > ${page.pageNumber}
+      `;
     });
 
     return { message: 'Page deleted successfully' };

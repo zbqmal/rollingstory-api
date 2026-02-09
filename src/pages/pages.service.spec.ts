@@ -306,18 +306,12 @@ describe('PagesService', () => {
     it('should delete a page and reorder subsequent pages', async () => {
       mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
 
-      const subsequentPages = [
-        { ...mockPage, id: 'page-2', pageNumber: 2 },
-        { ...mockPage, id: 'page-3', pageNumber: 3 },
-      ];
-
       const mockTransaction = jest.fn(async (callback) => {
         const tx = {
           page: {
             delete: jest.fn(),
-            findMany: jest.fn().mockResolvedValue(subsequentPages),
-            update: jest.fn(),
           },
+          $executeRaw: jest.fn(),
         };
         // eslint-disable-next-line @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call
         return await callback(tx);
