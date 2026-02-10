@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import {
   NotFoundException,
@@ -256,9 +255,7 @@ describe('CollaboratorsService', () => {
 
   describe('getCollaborators', () => {
     it('should return all approved collaborators', async () => {
-      const approvedCollabs = [
-        { ...mockCollaborator, approvedAt: new Date() },
-      ];
+      const approvedCollabs = [{ ...mockCollaborator, approvedAt: new Date() }];
       mockPrismaService.workCollaborator.findMany.mockResolvedValue(
         approvedCollabs,
       );
@@ -266,26 +263,24 @@ describe('CollaboratorsService', () => {
       const result = await service.getCollaborators('work-1');
 
       expect(result).toEqual(approvedCollabs);
-      expect(mockPrismaService.workCollaborator.findMany).toHaveBeenCalledWith(
-        {
-          where: {
-            workId: 'work-1',
-            approvedAt: {
-              not: null,
-            },
+      expect(mockPrismaService.workCollaborator.findMany).toHaveBeenCalledWith({
+        where: {
+          workId: 'work-1',
+          approvedAt: {
+            not: null,
           },
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                createdAt: true,
-              },
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              createdAt: true,
             },
           },
         },
-      );
+      });
     });
   });
 
@@ -300,24 +295,22 @@ describe('CollaboratorsService', () => {
       const result = await service.getPendingRequests('work-1', 'owner-1');
 
       expect(result).toEqual(pendingRequests);
-      expect(mockPrismaService.workCollaborator.findMany).toHaveBeenCalledWith(
-        {
-          where: {
-            workId: 'work-1',
-            approvedAt: null,
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                email: true,
-                createdAt: true,
-              },
+      expect(mockPrismaService.workCollaborator.findMany).toHaveBeenCalledWith({
+        where: {
+          workId: 'work-1',
+          approvedAt: null,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              createdAt: true,
             },
           },
         },
-      );
+      });
     });
 
     it('should throw NotFoundException if work not found', async () => {

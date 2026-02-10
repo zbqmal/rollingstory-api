@@ -11,7 +11,6 @@ describe('Collaborators (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let ownerToken: string;
-  let ownerUserId: string;
   let collaboratorToken: string;
   let collaboratorUserId: string;
   let thirdUserToken: string;
@@ -58,7 +57,6 @@ describe('Collaborators (e2e)', () => {
         password: 'password123',
       });
     ownerToken = ownerRes.body.token;
-    ownerUserId = ownerRes.body.user.id;
 
     // Create collaborator user
     const collabRes = await request(app.getHttpServer())

@@ -33,15 +33,16 @@ export class CollaboratorsService {
     }
 
     // Check if there's already a collaboration record (pending or approved)
-    const existingCollaboration =
-      await this.prisma.workCollaborator.findUnique({
+    const existingCollaboration = await this.prisma.workCollaborator.findUnique(
+      {
         where: {
           workId_userId: {
             workId,
             userId,
           },
         },
-      });
+      },
+    );
 
     if (existingCollaboration) {
       if (existingCollaboration.approvedAt) {
@@ -77,11 +78,7 @@ export class CollaboratorsService {
     return collaborationRequest;
   }
 
-  async approveCollaborator(
-    workId: string,
-    userId: string,
-    ownerId: string,
-  ) {
+  async approveCollaborator(workId: string, userId: string, ownerId: string) {
     // Check if work exists
     const work = await this.prisma.work.findUnique({
       where: { id: workId },
@@ -99,15 +96,14 @@ export class CollaboratorsService {
     }
 
     // Check if collaboration request exists
-    const collaborationRequest =
-      await this.prisma.workCollaborator.findUnique({
-        where: {
-          workId_userId: {
-            workId,
-            userId,
-          },
+    const collaborationRequest = await this.prisma.workCollaborator.findUnique({
+      where: {
+        workId_userId: {
+          workId,
+          userId,
         },
-      });
+      },
+    });
 
     if (!collaborationRequest) {
       throw new NotFoundException('Collaboration request not found');

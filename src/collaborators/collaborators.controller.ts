@@ -17,10 +17,7 @@ export class CollaboratorsController {
 
   @Post('works/:workId/collaborators/request')
   @UseGuards(JwtAuthGuard)
-  requestCollaboration(
-    @Param('workId') workId: string,
-    @GetUser() user: User,
-  ) {
+  requestCollaboration(@Param('workId') workId: string, @GetUser() user: User) {
     return this.collaboratorsService.requestCollaboration(workId, user.id);
   }
 
@@ -59,10 +56,7 @@ export class CollaboratorsController {
 
   @Get('works/:workId/collaborators/pending')
   @UseGuards(JwtAuthGuard)
-  getPendingRequests(
-    @Param('workId') workId: string,
-    @GetUser() user: User,
-  ) {
+  getPendingRequests(@Param('workId') workId: string, @GetUser() user: User) {
     return this.collaboratorsService.getPendingRequests(workId, user.id);
   }
 }
