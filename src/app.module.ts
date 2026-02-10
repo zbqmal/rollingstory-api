@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { WorksModule } from './works/works.module';
 import { PagesModule } from './pages/pages.module';
+import { CollaboratorsModule } from './collaborators/collaborators.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PagesModule } from './pages/pages.module';
     AuthModule,
     WorksModule,
     PagesModule,
+    CollaboratorsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
