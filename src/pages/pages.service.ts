@@ -18,7 +18,12 @@ export class PagesService {
       where: { id: workId },
       include: {
         collaborators: {
-          where: { userId },
+          where: {
+            userId,
+            approvedAt: {
+              not: null,
+            },
+          },
         },
       },
     });

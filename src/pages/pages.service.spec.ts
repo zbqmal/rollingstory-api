@@ -85,7 +85,12 @@ describe('PagesService', () => {
         where: { id: 'work-1' },
         include: {
           collaborators: {
-            where: { userId: 'user-1' },
+            where: {
+              userId: 'user-1',
+              approvedAt: {
+                not: null,
+              },
+            },
           },
         },
       });
