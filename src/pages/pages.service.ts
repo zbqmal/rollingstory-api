@@ -48,7 +48,7 @@ export class PagesService {
         orderBy: { pageNumber: 'desc' },
       });
 
-      const nextPageNumber = lastPage ? lastPage.pageNumber + 1 : 1;
+      const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
 
       // Create approved page
       const page = await this.prisma.page.create({
@@ -305,7 +305,7 @@ export class PagesService {
       orderBy: { pageNumber: 'desc' },
     });
 
-    const nextPageNumber = lastPage ? lastPage.pageNumber + 1 : 1;
+    const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
 
     // Update page: status = "approved", assign pageNumber, set approvedAt
     const approvedPage = await this.prisma.page.update({
