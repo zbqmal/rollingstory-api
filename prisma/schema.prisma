@@ -39,17 +39,19 @@ model Work {
 }
 
 model Page {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   workId      String
-  work        Work     @relation(fields: [workId], references: [id], onDelete: Cascade)
+  work        Work      @relation(fields: [workId], references: [id], onDelete: Cascade)
   authorId    String
-  author      User     @relation(fields: [authorId], references: [id])
-  content     String   @db.Text
-  pageNumber  Int
-  createdAt   DateTime @default(now())
+  author      User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content     String    @db.Text
+  pageNumber  Int?      // Nullable - only assigned when approved
+  status      String    @default("pending") // "pending" | "approved"
+  createdAt   DateTime  @default(now())
+  approvedAt  DateTime? // Timestamp when approved
   
   @@unique([workId, pageNumber])
-  @@index([workId, pageNumber])
+  @@index([workId, status])
 }
 
 model WorkCollaborator {
