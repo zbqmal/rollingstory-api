@@ -38,7 +38,7 @@ describe('PagesService', () => {
     title: 'Test Work',
     authorId: 'user-1',
     pageCharLimit: 2000,
-    collaborators: [],
+    allowCollaboration: true,
   };
 
   const mockPage = {
@@ -47,6 +47,8 @@ describe('PagesService', () => {
     authorId: 'user-1',
     content: 'Test content',
     pageNumber: 1,
+    status: 'approved',
+    approvedAt: new Date(),
     createdAt: new Date(),
     author: mockUser,
   };
@@ -71,7 +73,7 @@ describe('PagesService', () => {
   });
 
   describe('create', () => {
-    it('should create a page as work owner', async () => {
+    it('should create a page as work owner with approved status', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
       mockPrismaService.page.findFirst.mockResolvedValue(null);
       mockPrismaService.page.create.mockResolvedValue(mockPage);
@@ -83,11 +85,10 @@ describe('PagesService', () => {
       expect(result).toEqual(mockPage);
       expect(mockPrismaService.work.findUnique).toHaveBeenCalledWith({
         where: { id: 'work-1' },
-        include: {
-          collaborators: {
-            where: { userId: 'user-1' },
-          },
-        },
+      });
+      expect(mockPrismaService.page.findFirst).toHaveBeenCalledWith({
+        where: { workId: 'work-1', status: 'approved' },
+        orderBy: { pageNumber: 'desc' },
       });
       expect(mockPrismaService.page.create).toHaveBeenCalledWith({
         data: {
@@ -95,6 +96,8 @@ describe('PagesService', () => {
           authorId: 'user-1',
           content: 'Test content',
           pageNumber: 1,
+          status: 'approved',
+          approvedAt: expect.any(Date),
         },
         include: {
           author: {
@@ -109,24 +112,46 @@ describe('PagesService', () => {
       });
     });
 
-    it('should create a page as approved collaborator', async () => {
-      const workWithCollaborator = {
+    it('should create a page as non-owner with pending status', async () => {
+      const workByAnotherUser = {
         ...mockWork,
         authorId: 'user-2',
-        collaborators: [{ userId: 'user-1' }],
       };
-      mockPrismaService.work.findUnique.mockResolvedValue(workWithCollaborator);
-      mockPrismaService.page.findFirst.mockResolvedValue(null);
-      mockPrismaService.page.create.mockResolvedValue(mockPage);
+      const pendingPage = {
+        ...mockPage,
+        status: 'pending',
+        pageNumber: null,
+        approvedAt: null,
+      };
+      mockPrismaService.work.findUnique.mockResolvedValue(workByAnotherUser);
+      mockPrismaService.page.create.mockResolvedValue(pendingPage);
 
       const result = await service.create('work-1', 'user-1', {
         content: 'Test content',
       });
 
-      expect(result).toEqual(mockPage);
+      expect(result).toEqual(pendingPage);
+      expect(mockPrismaService.page.create).toHaveBeenCalledWith({
+        data: {
+          workId: 'work-1',
+          authorId: 'user-1',
+          content: 'Test content',
+          status: 'pending',
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
     });
 
-    it('should assign sequential page numbers', async () => {
+    it('should assign sequential page numbers for owner pages', async () => {
       const lastPage = { ...mockPage, pageNumber: 5 };
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
       mockPrismaService.page.findFirst.mockResolvedValue(lastPage);
@@ -141,6 +166,8 @@ describe('PagesService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             pageNumber: 6,
+            status: 'approved',
+            approvedAt: expect.any(Date),
           }),
         }),
       );
@@ -154,11 +181,11 @@ describe('PagesService', () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw ForbiddenException if user is not owner or collaborator', async () => {
+    it('should throw ForbiddenException if work does not allow collaboration', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue({
         ...mockWork,
         authorId: 'user-2',
-        collaborators: [],
+        allowCollaboration: false,
       });
 
       await expect(
@@ -177,7 +204,7 @@ describe('PagesService', () => {
   });
 
   describe('findAll', () => {
-    it('should return all pages for a work', async () => {
+    it('should return all approved pages for a work', async () => {
       const pages = [mockPage, { ...mockPage, id: 'page-2', pageNumber: 2 }];
       mockPrismaService.page.findMany.mockResolvedValue(pages);
 
@@ -185,7 +212,7 @@ describe('PagesService', () => {
 
       expect(result).toEqual(pages);
       expect(mockPrismaService.page.findMany).toHaveBeenCalledWith({
-        where: { workId: 'work-1' },
+        where: { workId: 'work-1', status: 'approved' },
         include: {
           author: {
             select: {
@@ -200,7 +227,7 @@ describe('PagesService', () => {
       });
     });
 
-    it('should return empty array if no pages', async () => {
+    it('should return empty array if no approved pages', async () => {
       mockPrismaService.page.findMany.mockResolvedValue([]);
 
       const result = await service.findAll('work-1');
@@ -210,18 +237,17 @@ describe('PagesService', () => {
   });
 
   describe('findOne', () => {
-    it('should return a specific page', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
+    it('should return a specific approved page', async () => {
+      mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
 
       const result = await service.findOne('work-1', 1);
 
       expect(result).toEqual(mockPage);
-      expect(mockPrismaService.page.findUnique).toHaveBeenCalledWith({
+      expect(mockPrismaService.page.findFirst).toHaveBeenCalledWith({
         where: {
-          workId_pageNumber: {
-            workId: 'work-1',
-            pageNumber: 1,
-          },
+          workId: 'work-1',
+          pageNumber: 1,
+          status: 'approved',
         },
         include: {
           author: {
@@ -237,7 +263,7 @@ describe('PagesService', () => {
     });
 
     it('should throw NotFoundException if page not found', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(null);
+      mockPrismaService.page.findFirst.mockResolvedValue(null);
 
       await expect(service.findOne('work-1', 1)).rejects.toThrow(
         NotFoundException,
@@ -246,7 +272,7 @@ describe('PagesService', () => {
   });
 
   describe('update', () => {
-    it('should update a page', async () => {
+    it('should update an approved page', async () => {
       const pageWithWork = { ...mockPage, work: mockWork };
       mockPrismaService.page.findUnique.mockResolvedValue(pageWithWork);
       mockPrismaService.page.update.mockResolvedValue(mockPage);
@@ -292,7 +318,7 @@ describe('PagesService', () => {
     });
 
     it('should throw BadRequestException if content exceeds character limit', async () => {
-      const pageWithWork = { ...mockPage, work: mockWork };
+      const pageWithWork = { ...mockPage, work: mockWork, status: 'approved' };
       mockPrismaService.page.findUnique.mockResolvedValue(pageWithWork);
 
       const longContent = 'a'.repeat(2001);
@@ -300,10 +326,19 @@ describe('PagesService', () => {
         service.update('page-1', 'user-1', { content: longContent }),
       ).rejects.toThrow(BadRequestException);
     });
+
+    it('should throw ForbiddenException if page is pending', async () => {
+      const pendingPage = { ...mockPage, work: mockWork, status: 'pending' };
+      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
+
+      await expect(
+        service.update('page-1', 'user-1', { content: 'Updated content' }),
+      ).rejects.toThrow(ForbiddenException);
+    });
   });
 
   describe('remove', () => {
-    it('should delete a page and reorder subsequent pages', async () => {
+    it('should delete an approved page and reorder subsequent pages', async () => {
       mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
 
       const mockTransaction = jest.fn(async (callback) => {
@@ -337,6 +372,15 @@ describe('PagesService', () => {
       mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
 
       await expect(service.remove('page-1', 'user-2')).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should throw ForbiddenException if page is pending', async () => {
+      const pendingPage = { ...mockPage, status: 'pending' };
+      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
+
+      await expect(service.remove('page-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
       );
     });

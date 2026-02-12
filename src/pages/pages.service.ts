@@ -16,24 +16,19 @@ export class PagesService {
     // Verify work exists and check authorization
     const work = await this.prisma.work.findUnique({
       where: { id: workId },
-      include: {
-        collaborators: {
-          where: { userId },
-        },
-      },
     });
 
     if (!work) {
       throw new NotFoundException('Work not found');
     }
 
-    // Check if user is owner or approved collaborator
+    // Check if user is owner
     const isOwner = work.authorId === userId;
-    const isCollaborator = work.collaborators.length > 0;
 
-    if (!isOwner && !isCollaborator) {
+    // Only check allowCollaboration for non-owners
+    if (!isOwner && !work.allowCollaboration) {
       throw new ForbiddenException(
-        'You are not authorized to add pages to this work',
+        'This work does not allow contributions',
       );
     }
 
@@ -44,40 +39,68 @@ export class PagesService {
       );
     }
 
-    // Get the next page number
-    const lastPage = await this.prisma.page.findFirst({
-      where: { workId },
-      orderBy: { pageNumber: 'desc' },
-    });
+    // If owner: Create with status = "approved", assign pageNumber, set approvedAt
+    // If not owner: Create with status = "pending", pageNumber = null, approvedAt = null
+    if (isOwner) {
+      // Get the next page number for approved pages
+      const lastPage = await this.prisma.page.findFirst({
+        where: { workId, status: 'approved' },
+        orderBy: { pageNumber: 'desc' },
+      });
 
-    const nextPageNumber = lastPage ? lastPage.pageNumber + 1 : 1;
+      const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
 
-    // Create the page
-    const page = await this.prisma.page.create({
-      data: {
-        workId,
-        authorId: userId,
-        content: dto.content,
-        pageNumber: nextPageNumber,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            email: true,
-            username: true,
-            createdAt: true,
+      // Create approved page
+      const page = await this.prisma.page.create({
+        data: {
+          workId,
+          authorId: userId,
+          content: dto.content,
+          pageNumber: nextPageNumber,
+          status: 'approved',
+          approvedAt: new Date(),
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              createdAt: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return page;
+      return page;
+    } else {
+      // Create pending page (no pageNumber yet)
+      const page = await this.prisma.page.create({
+        data: {
+          workId,
+          authorId: userId,
+          content: dto.content,
+          status: 'pending',
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              createdAt: true,
+            },
+          },
+        },
+      });
+
+      return page;
+    }
   }
 
   async findAll(workId: string) {
     const pages = await this.prisma.page.findMany({
-      where: { workId },
+      where: { workId, status: 'approved' },
       include: {
         author: {
           select: {
@@ -95,12 +118,11 @@ export class PagesService {
   }
 
   async findOne(workId: string, pageNumber: number) {
-    const page = await this.prisma.page.findUnique({
+    const page = await this.prisma.page.findFirst({
       where: {
-        workId_pageNumber: {
-          workId,
-          pageNumber,
-        },
+        workId,
+        pageNumber,
+        status: 'approved',
       },
       include: {
         author: {
@@ -132,6 +154,13 @@ export class PagesService {
 
     if (!page) {
       throw new NotFoundException('Page not found');
+    }
+
+    // Only allow updates to approved pages
+    if (page.status !== 'approved') {
+      throw new ForbiddenException(
+        'Only approved pages can be updated',
+      );
     }
 
     // Verify user is the page author
@@ -177,6 +206,13 @@ export class PagesService {
       throw new NotFoundException('Page not found');
     }
 
+    // Only allow deletion of approved pages
+    if (page.status !== 'approved') {
+      throw new ForbiddenException(
+        'Only approved pages can be deleted',
+      );
+    }
+
     // Verify user is the page author
     if (page.authorId !== userId) {
       throw new ForbiddenException('You are not the author of this page');
@@ -189,15 +225,139 @@ export class PagesService {
         where: { id: pageId },
       });
 
-      // Decrement pageNumber of all subsequent pages using a single query
+      // Decrement pageNumber of all subsequent approved pages using a single query
       await tx.$executeRaw`
         UPDATE "Page"
         SET "pageNumber" = "pageNumber" - 1
         WHERE "workId" = ${page.workId}
         AND "pageNumber" > ${page.pageNumber}
+        AND status = 'approved'
       `;
     });
 
     return { message: 'Page deleted successfully' };
+  }
+
+  async getPendingContributions(workId: string, ownerId: string) {
+    // Verify work exists and user is owner
+    const work = await this.prisma.work.findUnique({
+      where: { id: workId },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Work not found');
+    }
+
+    if (work.authorId !== ownerId) {
+      throw new ForbiddenException(
+        'Only the work owner can perform this action',
+      );
+    }
+
+    // Return all pending pages for this work
+    const pendingPages = await this.prisma.page.findMany({
+      where: {
+        workId,
+        status: 'pending',
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    return pendingPages;
+  }
+
+  async approveContribution(pageId: string, ownerId: string) {
+    // Find the page
+    const page = await this.prisma.page.findUnique({
+      where: { id: pageId },
+      include: { work: true },
+    });
+
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    // Verify page is pending
+    if (page.status !== 'pending') {
+      throw new BadRequestException('Page is not pending approval');
+    }
+
+    // Verify user is the work owner
+    if (page.work.authorId !== ownerId) {
+      throw new ForbiddenException(
+        'Only the work owner can perform this action',
+      );
+    }
+
+    // Get the next available page number
+    const lastPage = await this.prisma.page.findFirst({
+      where: { workId: page.workId, status: 'approved' },
+      orderBy: { pageNumber: 'desc' },
+    });
+
+    const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
+
+    // Update page: status = "approved", assign pageNumber, set approvedAt
+    const approvedPage = await this.prisma.page.update({
+      where: { id: pageId },
+      data: {
+        status: 'approved',
+        pageNumber: nextPageNumber,
+        approvedAt: new Date(),
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return approvedPage;
+  }
+
+  async rejectContribution(pageId: string, ownerId: string) {
+    // Find the page
+    const page = await this.prisma.page.findUnique({
+      where: { id: pageId },
+      include: { work: true },
+    });
+
+    if (!page) {
+      throw new NotFoundException('Page not found');
+    }
+
+    // Verify page is pending
+    if (page.status !== 'pending') {
+      throw new BadRequestException('Page is not pending approval');
+    }
+
+    // Verify user is the work owner
+    if (page.work.authorId !== ownerId) {
+      throw new ForbiddenException(
+        'Only the work owner can perform this action',
+      );
+    }
+
+    // Delete the page permanently
+    await this.prisma.page.delete({
+      where: { id: pageId },
+    });
+
+    return { message: 'Contribution rejected and deleted successfully' };
   }
 }

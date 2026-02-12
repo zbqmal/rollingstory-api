@@ -35,6 +35,12 @@ export class PagesController {
     return this.pagesService.findAll(workId);
   }
 
+  @Get('works/:workId/pages/pending')
+  @UseGuards(JwtAuthGuard)
+  getPending(@Param('workId') workId: string, @GetUser() user: User) {
+    return this.pagesService.getPendingContributions(workId, user.id);
+  }
+
   @Get('works/:workId/pages/:number')
   findOne(
     @Param('workId') workId: string,
@@ -57,5 +63,17 @@ export class PagesController {
   @UseGuards(JwtAuthGuard)
   remove(@Param('id') id: string, @GetUser() user: User) {
     return this.pagesService.remove(id, user.id);
+  }
+
+  @Post('pages/:id/approve')
+  @UseGuards(JwtAuthGuard)
+  approve(@Param('id') id: string, @GetUser() user: User) {
+    return this.pagesService.approveContribution(id, user.id);
+  }
+
+  @Delete('pages/:id/reject')
+  @UseGuards(JwtAuthGuard)
+  reject(@Param('id') id: string, @GetUser() user: User) {
+    return this.pagesService.rejectContribution(id, user.id);
   }
 }

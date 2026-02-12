@@ -75,6 +75,7 @@ describe('Pages (e2e)', () => {
         title: 'Test Novel',
         description: 'A test novel',
         pageCharLimit: 500,
+        allowCollaboration: false,
       });
     workId = workRes.body.id;
 
@@ -100,7 +101,7 @@ describe('Pages (e2e)', () => {
   });
 
   describe('/works/:workId/pages (POST)', () => {
-    it('should create a page as work owner', () => {
+    it('should create a page as work owner with approved status', () => {
       return request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
         .set('Authorization', `Bearer ${authToken}`)
@@ -113,12 +114,14 @@ describe('Pages (e2e)', () => {
           expect(res.body.workId).toBe(workId);
           expect(res.body.content).toBe('This is the first page of my novel.');
           expect(res.body.pageNumber).toBe(1);
+          expect(res.body.status).toBe('approved');
+          expect(res.body.approvedAt).toBeDefined();
           expect(res.body.author).toHaveProperty('username', 'testuser');
           expect(res.body.author).not.toHaveProperty('password');
         });
     });
 
-    it('should create a page as collaborator', () => {
+    it('should create a page as non-owner with pending status', () => {
       return request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
         .set('Authorization', `Bearer ${anotherAuthToken}`)
@@ -129,7 +132,9 @@ describe('Pages (e2e)', () => {
         .expect((res) => {
           expect(res.body.workId).toBe(collaborativeWorkId);
           expect(res.body.authorId).toBe(anotherUserId);
-          expect(res.body.pageNumber).toBe(1);
+          expect(res.body.status).toBe('pending');
+          expect(res.body.pageNumber).toBeNull();
+          expect(res.body.approvedAt).toBeNull();
         });
     });
 
@@ -160,14 +165,17 @@ describe('Pages (e2e)', () => {
         .expect(401);
     });
 
-    it('should fail if user is not owner or collaborator', () => {
+    it('should fail if user is not owner and work does not allow collaboration', () => {
       return request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
         .set('Authorization', `Bearer ${anotherAuthToken}`)
         .send({
           content: 'I should not be able to add this.',
         })
-        .expect(403);
+        .expect(403)
+        .expect((res) => {
+          expect(res.body.message).toContain('does not allow contributions');
+        });
     });
 
     it('should fail if content exceeds character limit', () => {
@@ -399,6 +407,246 @@ describe('Pages (e2e)', () => {
         .delete('/pages/non-existent-id')
         .set('Authorization', `Bearer ${authToken}`)
         .expect(404);
+    });
+  });
+
+  describe('Pending Contributions Workflow', () => {
+    describe('GET /works/:workId/pages/pending', () => {
+      it('should return pending contributions for work owner', async () => {
+        // Create a pending contribution
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending contribution 1' });
+
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending contribution 2' });
+
+        return request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages/pending`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200)
+          .expect((res) => {
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body).toHaveLength(2);
+            expect(res.body[0].status).toBe('pending');
+            expect(res.body[0].pageNumber).toBeNull();
+            expect(res.body[0].content).toBe('Pending contribution 1');
+          });
+      });
+
+      it('should fail if user is not the work owner', async () => {
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending contribution' });
+
+        return request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages/pending`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .expect(403)
+          .expect((res) => {
+            expect(res.body.message).toContain('Only the work owner');
+          });
+      });
+
+      it('should return empty array if no pending contributions', () => {
+        return request(app.getHttpServer())
+          .get(`/works/${workId}/pages/pending`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200)
+          .expect((res) => {
+            expect(Array.isArray(res.body)).toBe(true);
+            expect(res.body).toHaveLength(0);
+          });
+      });
+    });
+
+    describe('POST /pages/:id/approve', () => {
+      let pendingPageId: string;
+
+      beforeEach(async () => {
+        const res = await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending contribution to approve' });
+        pendingPageId = res.body.id;
+      });
+
+      it('should approve a pending contribution', async () => {
+        const res = await request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(201);
+
+        expect(res.body.status).toBe('approved');
+        expect(res.body.pageNumber).toBe(1);
+        expect(res.body.approvedAt).toBeDefined();
+        expect(res.body.content).toBe('Pending contribution to approve');
+      });
+
+      it('should assign sequential page numbers when approving', async () => {
+        // Create an approved page first
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send({ content: 'Owner page 1' });
+
+        // Approve the pending contribution
+        const res = await request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(201);
+
+        expect(res.body.pageNumber).toBe(2);
+      });
+
+      it('should make approved page visible in public list', async () => {
+        // Approve the contribution
+        await request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(201);
+
+        // Check public list
+        const res = await request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages`)
+          .expect(200);
+
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].id).toBe(pendingPageId);
+        expect(res.body[0].status).toBe('approved');
+      });
+
+      it('should fail if user is not the work owner', () => {
+        return request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .expect(403)
+          .expect((res) => {
+            expect(res.body.message).toContain('Only the work owner');
+          });
+      });
+
+      it('should fail if page is already approved', async () => {
+        // Approve once
+        await request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(201);
+
+        // Try to approve again
+        return request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(400)
+          .expect((res) => {
+            expect(res.body.message).toContain('not pending');
+          });
+      });
+    });
+
+    describe('DELETE /pages/:id/reject', () => {
+      let pendingPageId: string;
+
+      beforeEach(async () => {
+        const res = await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending contribution to reject' });
+        pendingPageId = res.body.id;
+      });
+
+      it('should reject a pending contribution', async () => {
+        const res = await request(app.getHttpServer())
+          .delete(`/pages/${pendingPageId}/reject`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200);
+
+        expect(res.body.message).toContain('rejected');
+      });
+
+      it('should permanently delete rejected contribution', async () => {
+        // Reject the contribution
+        await request(app.getHttpServer())
+          .delete(`/pages/${pendingPageId}/reject`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200);
+
+        // Try to get it - should not be in pending list
+        const res = await request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages/pending`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(200);
+
+        expect(res.body).toHaveLength(0);
+      });
+
+      it('should fail if user is not the work owner', () => {
+        return request(app.getHttpServer())
+          .delete(`/pages/${pendingPageId}/reject`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .expect(403)
+          .expect((res) => {
+            expect(res.body.message).toContain('Only the work owner');
+          });
+      });
+
+      it('should fail if page is already approved', async () => {
+        // Approve the page first
+        await request(app.getHttpServer())
+          .post(`/pages/${pendingPageId}/approve`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(201);
+
+        // Try to reject approved page
+        return request(app.getHttpServer())
+          .delete(`/pages/${pendingPageId}/reject`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .expect(400)
+          .expect((res) => {
+            expect(res.body.message).toContain('not pending');
+          });
+      });
+    });
+
+    describe('Pending pages should not appear in public endpoints', () => {
+      it('should not return pending pages in GET /works/:workId/pages', async () => {
+        // Create approved page
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${authToken}`)
+          .send({ content: 'Approved page' });
+
+        // Create pending page
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending page' });
+
+        const res = await request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages`)
+          .expect(200);
+
+        expect(res.body).toHaveLength(1);
+        expect(res.body[0].content).toBe('Approved page');
+        expect(res.body[0].status).toBe('approved');
+      });
+
+      it('should not return pending page by pageNumber', async () => {
+        // Create pending page
+        await request(app.getHttpServer())
+          .post(`/works/${collaborativeWorkId}/pages`)
+          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .send({ content: 'Pending page' });
+
+        // Try to get by pageNumber (should not exist since pending pages have null pageNumber)
+        return request(app.getHttpServer())
+          .get(`/works/${collaborativeWorkId}/pages/1`)
+          .expect(404);
+      });
     });
   });
 });
