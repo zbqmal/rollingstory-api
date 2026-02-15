@@ -1,7 +1,7 @@
 # RollingStory - Project Plan & Architecture
 
-> **Last Updated:** 2026-02-09  
-> **Status:** Phase 1 Complete ✅ | Phase 2 Complete ✅ | Phase 3 Complete ✅ | Phase 4 Ready 🚀
+> **Last Updated:** 2026-02-15  
+> **Status:** Phase 1 Complete ✅ | Phase 2 Complete ✅ | Phase 3 Complete ✅ | Phase 4 Complete ✅ | Phase 5 Ready 🚀
 
 ---
 
@@ -351,65 +351,157 @@ DELETE /pages/:id                    - Delete page (author only, reorders)
 
 ---
 
-### 👥 Phase 4: Collaboration
+### ✅ Phase 4: Page Contribution System (COMPLETE)
 
-#### Phase 4.1: Backend - Collaboration API 📋
+#### Phase 4.1: Backend - Page Contribution API ✅
 **Repository:** `rollingstory-api`
 
-**To Implement:**
-- [ ] Collaborators module
-- [ ] DTOs (add-collaborator.dto.ts)
-- [ ] Service methods
-  - `requestCollaboration()` - User requests to collaborate
-  - `approveCollaborator()` - Owner approves request
-  - `removeCollaborator()` - Remove collaborator
-  - `getCollaborators()` - List work collaborators
-- [ ] Middleware
-  - Check if user is owner or approved collaborator before allowing page creation
+**Implemented:**
+- [x] Database migration - Added `status` field to `Page` model
+- [x] Added `approvedAt` timestamp field
+- [x] Made `pageNumber` nullable (assigned only when approved)
+- [x] Updated Pages service methods
+  - `create()` - Owner pages approved immediately, non-owner pages pending
+  - `getPendingContributions()` - Owner views pending contributions
+  - `approveContribution()` - Approve and assign page number
+  - `rejectContribution()` - Delete rejected contribution
+- [x] Updated existing endpoints to filter approved pages only
+- [x] New controller endpoints
+  - `GET /works/:workId/pages/pending` - View pending (owner only)
+  - `POST /pages/:id/approve` - Approve contribution (owner only)
+  - `DELETE /pages/:id/reject` - Reject contribution (owner only)
+- [x] Removed old collaborators module (user-based collaboration)
+- [x] Tests
+  - Updated `pages.service.spec.ts`
+  - Updated `pages.controller.spec.ts`
+  - Updated `pages.e2e-spec.ts`
 
 **Endpoints:**
 ```
-POST   /works/:workId/collaborators/request  - Request to collaborate
-POST   /works/:workId/collaborators/:userId/approve  - Approve collaborator (owner)
-DELETE /works/:workId/collaborators/:userId  - Remove collaborator (owner)
-GET    /works/:workId/collaborators          - List collaborators
+POST   /works/:workId/pages          - Submit page (owner: approved, contributor: pending)
+GET    /works/:workId/pages          - List approved pages only (public)
+GET    /works/:workId/pages/:number  - Get specific approved page (public)
+GET    /works/:workId/pages/pending  - View pending contributions (owner only)
+POST   /pages/:id/approve            - Approve contribution (owner only)
+DELETE /pages/:id/reject             - Reject contribution (owner only)
+PATCH  /pages/:id                    - Update page (author only)
+DELETE /pages/:id                    - Delete page (author only)
 ```
 
+✅ **All endpoints tested and working**
+
 **Business Rules:**
-- Only works with `allowCollaboration: true` accept requests
-- Only work owner can approve/remove collaborators
-- Approved collaborators can add pages
-- Collaborators cannot edit work settings
-
-#### Phase 4.2: Frontend - Collaboration UI 📋
-**Repository:** `rollingstory-web`
-
-**To Implement:**
-- [ ] Collaboration request button
-- [ ] Collaborator management panel (owner view)
-- [ ] Pending requests list
-- [ ] Collaborator list display
-- [ ] Notifications (optional)
+- Any authenticated user can submit page contributions to collaborative works
+- Work owner's pages are immediately approved with page number
+- Non-owner submissions start as `status = "pending"` with `pageNumber = null`
+- Only work owner can view, approve, or reject pending contributions
+- Approved contributions get assigned next sequential page number
+- Rejected contributions are permanently deleted
+- Only approved pages appear in public page lists
+- Page authors can edit/delete their own approved pages
 
 ---
 
-### 🔍 Phase 5: Discovery & Polish
+### 📝 Phase 5: Documentation Updates
 
-#### Phase 5.1: Search & Discovery 📋
+#### Phase 5.1: Update PROJECT_PLAN.md Files ✅
+**Repository:** Both `rollingstory-api` and `rollingstory-web`
+
+**Completed:**
+- [x] Updated status to reflect Phase 4 completion
+- [x] Documented Phase 4 implementation details
+- [x] Added Phase 5, 6, and 7 planning
+- [x] Updated last modified date
+
+---
+
+### 🎨 Phase 6: UI/UX Style Improvements
+
+**Note:** All Phase 6 changes are frontend-only in `rollingstory-web` repository. No backend changes needed.
+
+#### Phase 6.1: Color Scheme & Background Redesign 📋
+**Repository:** `rollingstory-web`
+
+**To Implement:**
+- [ ] Change background from black to white/light gray
+- [ ] Update content cards with subtle borders
+- [ ] Add proper shadows for depth
+- [ ] Maintain white/light backgrounds for cards
+- [ ] Update global color palette in Tailwind config
+
+#### Phase 6.2: Typography & Contrast Enhancement 📋
+**Repository:** `rollingstory-web`
+
+**To Implement:**
+- [ ] Improve text contrast ratios (WCAG AA compliant)
+- [ ] Fix faint text colors (placeholders, labels, inputs)
+- [ ] Update input field text colors for readability
+- [ ] Ensure all text is readable on light backgrounds
+- [ ] Update button text colors
+- [ ] Fix form field placeholders
+
+#### Phase 6.3: Rename "Work" to "Story" (Frontend Only) 📋
+**Repository:** `rollingstory-web`
+
+**To Implement:**
+- [ ] Rename all "Work" references to "Story" in UI text
+- [ ] Update route names (`/works` → `/stories`)
+- [ ] Update component names (WorkCard → StoryCard, etc.)
+- [ ] Update TypeScript types for display
+- [ ] Keep API calls unchanged (backend still uses "works")
+
+**Important:** Backend endpoints and database remain unchanged. Only frontend display names affected.
+
+---
+
+### 🚀 Phase 7: Behavior Enhancements
+
+#### Phase 7.1: Homepage Redesign - Show All Stories 📋
+**Repository:** `rollingstory-web`
+
+**To Implement:**
+- [ ] Remove "Welcome to Rolling Story" landing page
+- [ ] Make homepage (`/`) show all published stories
+- [ ] Allow non-registered users to browse and read stories
+- [ ] Keep navigation bar with Login/Register links
+- [ ] Redirect root path to story list view
+
+**New User Flow:** Visit Site → See All Stories → Browse/Read → (Optional) Register to Contribute
+
+#### Phase 7.2: Add Collaborators Section to Story Detail Page 📋
+
+**Backend Changes (rollingstory-api):**
+- [ ] Add/enhance endpoint: `GET /works/:id/collaborators`
+- [ ] Return list of contributors with page counts
+- [ ] Include only users with approved pages
+- [ ] Sort by page count (descending), then alphabetically
+
+**Frontend Changes (rollingstory-web):**
+- [ ] Add "Collaborators" section on story detail page
+- [ ] Fetch and display contributor list
+- [ ] Show max 5 collaborators, truncate with "..." if more
+- [ ] Display username with contribution count
+- [ ] Compact, non-intrusive design
+
+---
+
+### 🔍 Phase 8: Discovery & Polish
+
+#### Phase 8.1: Search & Discovery 📋
 **To Implement:**
 - [ ] Search works by title/description
 - [ ] Filter by type (novel/comic)
 - [ ] Sort by popularity, recent, etc.
 - [ ] Work categories/tags (optional)
 
-#### Phase 5.2: User Profiles 📋
+#### Phase 8.2: User Profiles 📋
 **To Implement:**
 - [ ] Public user profile page
 - [ ] User's published works
 - [ ] User's contributed pages
 - [ ] Bio and profile picture (optional)
 
-#### Phase 5.3: Polish & Features 📋
+#### Phase 8.3: Polish & Features 📋
 **To Implement:**
 - [ ] Dark mode
 - [ ] Mobile responsiveness improvements
@@ -613,4 +705,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-**Note:** This document is a living document and will be updated as the project evolves. Last updated: 2026-02-09
+**Note:** This document is a living document and will be updated as the project evolves. Last updated: 2026-02-15
