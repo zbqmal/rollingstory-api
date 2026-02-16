@@ -649,4 +649,150 @@ describe('Pages (e2e)', () => {
       });
     });
   });
+
+  describe('GET /works/:workId/collaborators', () => {
+    it('should return collaborators for a work', async () => {
+      // Create pages with different authors
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ content: 'Page by owner 1' });
+
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ content: 'Page by owner 2' });
+
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .send({ content: 'Page by collaborator' });
+
+      // Approve the collaborator's page
+      const pendingRes = await request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/pages/pending`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      await request(app.getHttpServer())
+        .post(`/pages/${pendingRes.body[0].id}/approve`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      // Get collaborators
+      return request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .expect(200)
+        .expect((res) => {
+          expect(Array.isArray(res.body)).toBe(true);
+          expect(res.body).toHaveLength(2);
+          // Should be sorted by page count (desc)
+          expect(res.body[0].username).toBe('testuser');
+          expect(res.body[0].pageCount).toBe(2);
+          expect(res.body[1].username).toBe('anotheruser');
+          expect(res.body[1].pageCount).toBe(1);
+          // Check structure
+          expect(res.body[0]).toHaveProperty('userId');
+          expect(res.body[0]).toHaveProperty('username');
+          expect(res.body[0]).toHaveProperty('pageCount');
+        });
+    });
+
+    it('should return 404 for non-existent work', () => {
+      return request(app.getHttpServer())
+        .get('/works/non-existent-id/collaborators')
+        .expect(404);
+    });
+
+    it('should return empty array for work with no approved pages', () => {
+      return request(app.getHttpServer())
+        .get(`/works/${workId}/collaborators`)
+        .expect(200)
+        .expect((res) => {
+          expect(Array.isArray(res.body)).toBe(true);
+          expect(res.body).toHaveLength(0);
+        });
+    });
+
+    it('should not count pending pages', async () => {
+      // Create approved page by owner
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ content: 'Approved page' });
+
+      // Create pending page by collaborator (not approved)
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .send({ content: 'Pending page' });
+
+      // Get collaborators
+      const res = await request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .expect(200);
+
+      expect(res.body).toHaveLength(1);
+      expect(res.body[0].username).toBe('testuser');
+      expect(res.body[0].pageCount).toBe(1);
+    });
+
+    it('should sort alphabetically when page counts are equal', async () => {
+      // Create a third user
+      const thirdUserRes = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'charlie@example.com',
+          username: 'charlie',
+          password: 'password123',
+        });
+      const thirdUserToken = thirdUserRes.body.token;
+
+      // Create pages for each user (1 page each)
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send({ content: 'Page by testuser' });
+
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .send({ content: 'Page by anotheruser' });
+
+      await request(app.getHttpServer())
+        .post(`/works/${collaborativeWorkId}/pages`)
+        .set('Authorization', `Bearer ${thirdUserToken}`)
+        .send({ content: 'Page by charlie' });
+
+      // Approve pending pages
+      const pendingRes = await request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/pages/pending`)
+        .set('Authorization', `Bearer ${authToken}`);
+
+      for (const page of pendingRes.body) {
+        await request(app.getHttpServer())
+          .post(`/pages/${page.id}/approve`)
+          .set('Authorization', `Bearer ${authToken}`);
+      }
+
+      // Get collaborators
+      const res = await request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .expect(200);
+
+      expect(res.body).toHaveLength(3);
+      // All have 1 page, so should be sorted alphabetically
+      expect(res.body[0].username).toBe('anotheruser');
+      expect(res.body[1].username).toBe('charlie');
+      expect(res.body[2].username).toBe('testuser');
+      expect(res.body[0].pageCount).toBe(1);
+      expect(res.body[1].pageCount).toBe(1);
+      expect(res.body[2].pageCount).toBe(1);
+    });
+
+    it('should be accessible without authentication', () => {
+      // Should not require auth token
+      return request(app.getHttpServer())
+        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .expect(200);
+    });
+  });
 });

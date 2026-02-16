@@ -11,6 +11,7 @@ describe('PagesController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    getCollaborators: jest.fn(),
   };
 
   const mockUser = {
@@ -119,6 +120,21 @@ describe('PagesController', () => {
 
       expect(response).toEqual(result);
       expect(mockPagesService.remove).toHaveBeenCalledWith('page-1', 'user-1');
+    });
+  });
+
+  describe('getCollaborators', () => {
+    it('should return list of collaborators', async () => {
+      const collaborators = [
+        { userId: 'user-1', username: 'alice', pageCount: 12 },
+        { userId: 'user-2', username: 'bob', pageCount: 8 },
+      ];
+      mockPagesService.getCollaborators.mockResolvedValue(collaborators);
+
+      const result = await controller.getCollaborators('work-1');
+
+      expect(result).toEqual(collaborators);
+      expect(mockPagesService.getCollaborators).toHaveBeenCalledWith('work-1');
     });
   });
 });
