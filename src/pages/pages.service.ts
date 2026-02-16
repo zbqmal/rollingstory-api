@@ -360,4 +360,38 @@ export class PagesService {
 
     return { message: 'Contribution rejected and deleted successfully' };
   }
+
+  async getCollaborators(workId: string) {
+    // Verify work exists
+    const work = await this.prisma.work.findUnique({
+      where: { id: workId },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Work not found');
+    }
+
+    // Use query builder for efficient aggregation
+    const collaborators = await this.prisma.$queryRaw<
+      Array<{ userId: string; username: string; pageCount: bigint }>
+    >`
+      SELECT 
+        "User"."id" as "userId",
+        "User"."username" as "username",
+        COUNT("Page"."id")::int as "pageCount"
+      FROM "Page"
+      INNER JOIN "User" ON "Page"."authorId" = "User"."id"
+      WHERE "Page"."workId" = ${workId}
+        AND "Page"."status" = 'approved'
+      GROUP BY "User"."id", "User"."username"
+      ORDER BY "pageCount" DESC, "User"."username" ASC
+    `;
+
+    // Transform to proper format
+    return collaborators.map((c) => ({
+      userId: c.userId,
+      username: c.username,
+      pageCount: Number(c.pageCount),
+    }));
+  }
 }
