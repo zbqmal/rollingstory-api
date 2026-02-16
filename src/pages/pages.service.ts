@@ -373,7 +373,7 @@ export class PagesService {
 
     // Use query builder for efficient aggregation
     const collaborators = await this.prisma.$queryRaw<
-      Array<{ userId: string; username: string; pageCount: bigint }>
+      Array<{ userId: string; username: string; pageCount: number }>
     >`
       SELECT 
         "User"."id" as "userId",
@@ -387,11 +387,7 @@ export class PagesService {
       ORDER BY "pageCount" DESC, "User"."username" ASC
     `;
 
-    // Transform to proper format
-    return collaborators.map((c) => ({
-      userId: c.userId,
-      username: c.username,
-      pageCount: Number(c.pageCount),
-    }));
+    // Return collaborators (already in correct format)
+    return collaborators;
   }
 }

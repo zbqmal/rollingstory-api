@@ -391,9 +391,9 @@ describe('PagesService', () => {
     it('should return collaborators sorted by page count', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
       mockPrismaService.$queryRaw.mockResolvedValue([
-        { userId: 'user-1', username: 'alice', pageCount: 12n },
-        { userId: 'user-2', username: 'bob', pageCount: 8n },
-        { userId: 'user-3', username: 'carol', pageCount: 5n },
+        { userId: 'user-1', username: 'alice', pageCount: 12 },
+        { userId: 'user-2', username: 'bob', pageCount: 8 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
       ]);
 
       const result = await service.getCollaborators('work-1');
@@ -429,9 +429,9 @@ describe('PagesService', () => {
     it('should sort alphabetically when page counts are equal', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
       mockPrismaService.$queryRaw.mockResolvedValue([
-        { userId: 'user-1', username: 'alice', pageCount: 5n },
-        { userId: 'user-2', username: 'bob', pageCount: 5n },
-        { userId: 'user-3', username: 'carol', pageCount: 5n },
+        { userId: 'user-1', username: 'alice', pageCount: 5 },
+        { userId: 'user-2', username: 'bob', pageCount: 5 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
       ]);
 
       const result = await service.getCollaborators('work-1');
