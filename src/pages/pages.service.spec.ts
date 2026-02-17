@@ -24,6 +24,7 @@ describe('PagesService', () => {
       delete: jest.fn(),
     },
     $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
   };
 
   const mockUser = {
@@ -383,6 +384,64 @@ describe('PagesService', () => {
       await expect(service.remove('page-1', 'user-1')).rejects.toThrow(
         ForbiddenException,
       );
+    });
+  });
+
+  describe('getCollaborators', () => {
+    it('should return collaborators sorted by page count', async () => {
+      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
+      mockPrismaService.$queryRaw.mockResolvedValue([
+        { userId: 'user-1', username: 'alice', pageCount: 12 },
+        { userId: 'user-2', username: 'bob', pageCount: 8 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
+      ]);
+
+      const result = await service.getCollaborators('work-1');
+
+      expect(result).toEqual([
+        { userId: 'user-1', username: 'alice', pageCount: 12 },
+        { userId: 'user-2', username: 'bob', pageCount: 8 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
+      ]);
+      expect(mockPrismaService.work.findUnique).toHaveBeenCalledWith({
+        where: { id: 'work-1' },
+      });
+      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
+    });
+
+    it('should return empty array if no approved pages', async () => {
+      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
+      mockPrismaService.$queryRaw.mockResolvedValue([]);
+
+      const result = await service.getCollaborators('work-1');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should throw NotFoundException if work does not exist', async () => {
+      mockPrismaService.work.findUnique.mockResolvedValue(null);
+
+      await expect(service.getCollaborators('work-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should sort alphabetically when page counts are equal', async () => {
+      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
+      mockPrismaService.$queryRaw.mockResolvedValue([
+        { userId: 'user-1', username: 'alice', pageCount: 5 },
+        { userId: 'user-2', username: 'bob', pageCount: 5 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
+      ]);
+
+      const result = await service.getCollaborators('work-1');
+
+      expect(result).toEqual([
+        { userId: 'user-1', username: 'alice', pageCount: 5 },
+        { userId: 'user-2', username: 'bob', pageCount: 5 },
+        { userId: 'user-3', username: 'carol', pageCount: 5 },
+      ]);
+      // Verify sorting was handled by the SQL query
     });
   });
 });

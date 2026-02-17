@@ -76,4 +76,9 @@ export class PagesController {
   reject(@Param('id') id: string, @GetUser() user: User) {
     return this.pagesService.rejectContribution(id, user.id);
   }
+
+  @Get('works/:workId/collaborators')
+  getCollaborators(@Param('workId') workId: string) {
+    return this.pagesService.getCollaborators(workId);
+  }
 }
