@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AppModule } from './app.module';
 
@@ -30,9 +31,44 @@ async function bootstrap() {
     }),
   );
 
+  // Swagger Configuration
+  const config = new DocumentBuilder()
+    .setTitle('RollingStory API')
+    .setDescription(
+      'API for RollingStory - A collaborative storytelling platform where users can create works and contribute pages',
+    )
+    .setVersion('1.0')
+    .addTag('auth', 'Authentication endpoints')
+    .addTag('works', 'Work/Story management endpoints')
+    .addTag('pages', 'Page management and contribution endpoints')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        description: 'Enter JWT token',
+        name: 'Authorization',
+        in: 'header',
+      },
+      'JWT-auth',
+    )
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha',
+    },
+  });
+
   await app.listen(process.env.PORT || 3001);
   console.log(
     `Application is running on: http://localhost:${process.env.PORT || 3001}`,
+  );
+  console.log(
+    `Swagger documentation: http://localhost:${process.env.PORT || 3001}/api`,
   );
 }
 void bootstrap();
