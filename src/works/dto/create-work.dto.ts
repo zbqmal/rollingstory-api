@@ -11,7 +11,10 @@ import {
 } from 'class-validator';
 
 export class CreateWorkDto {
-  @ApiProperty({ example: 'My Amazing Story', description: 'Title of the work' })
+  @ApiProperty({
+    example: 'My Amazing Story',
+    description: 'Title of the work',
+  })
   @IsString()
   @MinLength(3)
   @MaxLength(200)

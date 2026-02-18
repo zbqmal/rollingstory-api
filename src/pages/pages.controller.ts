@@ -33,7 +33,10 @@ export class PagesController {
   @ApiOperation({ summary: 'Create a new page contribution' })
   @ApiResponse({ status: 201, description: 'Page successfully created' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - collaboration not allowed' })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden - collaboration not allowed',
+  })
   create(
     @Param('workId') workId: string,
     @GetUser() user: User,
