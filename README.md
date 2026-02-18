@@ -9,6 +9,7 @@
 **RollingStory** is a collaborative storytelling platform where users can create original works (novels, stories) and invite others to contribute pages. Each work has an author who can approve or reject page contributions, creating an engaging community-driven writing experience.
 
 ### Key Features
+
 - 📝 Create and manage collaborative stories
 - 👥 Invite contributors to add pages
 - ✅ Author approval system for contributions
@@ -35,41 +36,41 @@ This is the **backend API service** for RollingStory, built with **NestJS** and 
 
 ### Technology Stack
 
-| Category | Technology | Purpose |
-|----------|-----------|---------|
-| **Framework** | NestJS 11 | TypeScript-first Node.js framework |
-| **Language** | TypeScript 5.7 | Type-safe development |
-| **Database** | PostgreSQL 15 | Relational database |
-| **ORM** | Prisma 5 | Type-safe database client |
-| **Authentication** | JWT + Passport.js | Secure token-based auth |
-| **Password Hashing** | bcrypt 6.0 | Secure password storage |
-| **API Documentation** | Swagger/OpenAPI | Interactive API docs |
-| **Testing** | Jest + Supertest | Unit & E2E testing |
-| **Validation** | class-validator | DTO validation |
-| **Package Manager** | Yarn 4.12 | Fast, reliable dependencies |
-| **Deployment** | Railway | Cloud platform |
-| **Development** | GitHub Copilot | AI-assisted coding |
+| Category              | Technology        | Purpose                            |
+| --------------------- | ----------------- | ---------------------------------- |
+| **Framework**         | NestJS 11         | TypeScript-first Node.js framework |
+| **Language**          | TypeScript 5.7    | Type-safe development              |
+| **Database**          | PostgreSQL 15     | Relational database                |
+| **ORM**               | Prisma 5          | Type-safe database client          |
+| **Authentication**    | JWT + Passport.js | Secure token-based auth            |
+| **Password Hashing**  | bcrypt 6.0        | Secure password storage            |
+| **API Documentation** | Swagger/OpenAPI   | Interactive API docs               |
+| **Testing**           | Jest + Supertest  | Unit & E2E testing                 |
+| **Validation**        | class-validator   | DTO validation                     |
+| **Package Manager**   | Yarn 4.12         | Fast, reliable dependencies        |
+| **Deployment**        | Railway           | Cloud platform                     |
+| **Development**       | GitHub Copilot    | AI-assisted coding                 |
 
 ### Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     RollingStory API                         │
-│                                                               │
-│  ┌─────────────┐   ┌──────────────┐   ┌─────────────────┐  │
-│  │   Client    │ → │   NestJS     │ → │   PostgreSQL    │  │
-│  │  (Next.js)  │   │  Controllers │   │   + Prisma ORM  │  │
-│  └─────────────┘   └──────────────┘   └─────────────────┘  │
-│         ↓                  ↓                     ↓            │
+│                     RollingStory API                        │
+│                                                             │
+│  ┌─────────────┐   ┌──────────────┐   ┌─────────────────┐   │
+│  │   Client    │ → │   NestJS     │ → │   PostgreSQL    │   │
+│  │  (Next.js)  │   │  Controllers │   │   + Prisma ORM  │   │
+│  └─────────────┘   └──────────────┘   └─────────────────┘   │
+│         ↓                  ↓                     ↓          │
 │    JWT Token      ┌────────────────┐      ┌──────────────┐  │
 │  Authentication   │  Business      │      │   Database   │  │
 │                   │   Services     │ ←──→ │   Models     │  │
 │                   └────────────────┘      └──────────────┘  │
-│                          ↓                                    │
-│                   ┌─────────────┐                            │
-│                   │  Guards &   │                            │
-│                   │  Validation │                            │
-│                   └─────────────┘                            │
+│                          ↓                                  │
+│                   ┌─────────────┐                           │
+│                   │  Guards &   │                           │
+│                   │  Validation │                           │
+│                   └─────────────┘                           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -116,7 +117,7 @@ User {
   password        String (bcrypt hashed)
   createdAt       DateTime
   updatedAt       DateTime
-  
+
   // Relations
   authoredWorks   Work[]
   pages           Page[]
@@ -133,7 +134,7 @@ Work {
   allowCollaboration  Boolean (default: true)
   createdAt           DateTime
   updatedAt           DateTime
-  
+
   // Relations
   author              User
   pages               Page[]
@@ -149,7 +150,7 @@ Page {
   status      String (default: "pending")
   createdAt   DateTime
   approvedAt  DateTime?
-  
+
   // Relations
   work        Work
   author      User
@@ -160,7 +161,7 @@ WorkCollaborator {
   workId     String
   userId     String
   approvedAt DateTime
-  
+
   // Relations
   work       Work
   user       User
@@ -170,11 +171,13 @@ WorkCollaborator {
 ### API Endpoints
 
 #### Authentication (`/auth`)
+
 - `POST /auth/register` - Register new user
 - `POST /auth/login` - Login and receive JWT token
 - `GET /auth/me` - Get current user profile (protected)
 
 #### Works/Stories (`/works`)
+
 - `POST /works` - Create new work (protected)
 - `GET /works` - List all works (paginated, public)
 - `GET /works/my` - Get user's works (protected)
@@ -184,6 +187,7 @@ WorkCollaborator {
 - `GET /works/:id/collaborators` - List collaborators
 
 #### Pages (`/works/:workId/pages`, `/pages`)
+
 - `POST /works/:workId/pages` - Add page or contribute (protected)
 - `GET /works/:workId/pages` - List approved pages (public)
 - `GET /works/:workId/pages/pending` - View pending contributions (owner)
@@ -208,19 +212,22 @@ WorkCollaborator {
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/zbqmal/rollingstory-api.git
    cd rollingstory-api
    ```
 
 2. **Install dependencies**
+
    ```bash
    yarn install
    ```
 
 3. **Set up environment variables**
-   
+
    Create a `.env` file in the root directory:
+
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/rollingstory"
    JWT_SECRET="your-super-secret-jwt-key-min-64-chars"
@@ -229,16 +236,19 @@ WorkCollaborator {
    ```
 
 4. **Start PostgreSQL with Docker** (optional)
+
    ```bash
    docker-compose up -d
    ```
 
 5. **Run database migrations**
+
    ```bash
    yarn prisma migrate dev
    ```
 
 6. **Start the development server**
+
    ```bash
    yarn start:dev
    ```
@@ -283,6 +293,7 @@ yarn prisma studio
 The API is deployed on [Railway](https://railway.app) with automatic deployments from the `main` branch.
 
 **Live Endpoints:**
+
 - Production API: https://rollingstory-api-prod.up.railway.app
 - Development API: https://rollingstory-api-dev.up.railway.app
 
@@ -309,6 +320,7 @@ NODE_ENV=production
 This project was built with the assistance of **GitHub Copilot**, leveraging AI-powered code suggestions to accelerate development and maintain code quality.
 
 ### Key Development Tools
+
 - **NestJS CLI** - Generate modules, controllers, services
 - **Prisma CLI** - Database migrations and schema management
 - **ESLint** - Code linting and style enforcement
