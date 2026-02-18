@@ -6,12 +6,12 @@
 
 ## 🎯 About RollingStory
 
-**RollingStory** is a collaborative storytelling platform where users can create original works (novels, stories) and invite others to contribute pages. Each work has an author who can approve or reject page contributions, creating an engaging community-driven writing experience.
+**RollingStory** is a collaborative storytelling platform where users can create original works (novels, stories) and receive page contributions from others. Each work has an author who can approve or reject contributions, creating an engaging community-driven writing experience.
 
 ### Key Features
 
 - 📝 Create and manage collaborative stories
-- 👥 Invite contributors to add pages
+- 👥 Accept and manage page contributions from community members
 - ✅ Author approval system for contributions
 - 📄 Page-by-page reading experience
 - 🔐 Secure JWT-based authentication
@@ -290,12 +290,12 @@ yarn prisma studio
 
 ### Deployment Platform: Railway
 
-The API is deployed on [Railway](https://railway.app) with automatic deployments from the `main` branch.
+The API is deployed on [Railway](https://railway.app) with automatic deployments from GitHub.
 
 **Live Endpoints:**
 
-- Production API: https://rollingstory-api-prod.up.railway.app
-- Development API: https://rollingstory-api-dev.up.railway.app
+- Production API (`main` branch): https://rollingstory-api-prod.up.railway.app
+- Development API (`dev` branch): https://rollingstory-api-dev.up.railway.app
 
 ### Environment Variables (Production)
 
@@ -308,8 +308,8 @@ NODE_ENV=production
 
 ### Deployment Process
 
-1. Push changes to `main` branch
-2. Railway automatically triggers build and deployment
+1. Push changes to either `dev` (development) or `main` (production) branch
+2. Railway automatically triggers build and deployment for the corresponding environment
 3. Database migrations run automatically via Prisma
 4. New version is deployed with zero downtime
 
