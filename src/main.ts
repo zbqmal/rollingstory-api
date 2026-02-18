@@ -8,6 +8,11 @@ async function bootstrap() {
   // Enable CORS for frontend
   app.enableCors();
 
+  // Health check endpoint
+  app.getHttpAdapter().get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
+
   // Enable global validation pipe
   app.useGlobalPipes(
     new ValidationPipe({
