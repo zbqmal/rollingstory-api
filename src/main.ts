@@ -9,8 +9,8 @@ async function bootstrap() {
   // Enable CORS for frontend
   app.enableCors({
     origin: [
-      'https://rollingstory-api-prod.up.railway.app',
-      'https://rollingstory-api-dev.up.railway.app',
+      'https://rollingstory-web-dev.vercel.app',
+      'https://rollingstory-web-prod.vercel.app/',
       'http://localhost:3000', // for local development
     ],
     credentials: true,
