@@ -27,8 +27,51 @@
 
 ## Project setup
 
+1. **Install dependencies:**
+
 ```bash
 $ yarn install
+```
+
+2. **Set up environment variables:**
+
+Copy `.env.example` to `.env` and configure your database:
+
+```bash
+$ cp .env.example .env
+```
+
+The `.env` file should contain:
+- `DATABASE_URL`: PostgreSQL connection string
+- `JWT_SECRET`: Secret key for JWT token generation
+- `JWT_EXPIRES_IN`: JWT token expiration time
+- `PORT`: Application port (default: 3000)
+- `NODE_ENV`: Environment (development, production)
+
+3. **Start PostgreSQL database (using Docker):**
+
+```bash
+$ docker-compose up -d
+```
+
+This will start a PostgreSQL database with the credentials specified in `docker-compose.yml`.
+
+4. **Run Prisma migrations:**
+
+```bash
+$ npx prisma migrate deploy
+```
+
+Or for development:
+
+```bash
+$ npx prisma migrate dev
+```
+
+5. **Generate Prisma Client:**
+
+```bash
+$ npx prisma generate
 ```
 
 ## Compile and run the project
