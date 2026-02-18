@@ -11,7 +11,7 @@
 ### Key Features
 
 - 📝 Create and manage collaborative stories
-- 👥 Invite contributors to add pages
+- 👥 Support contribution feature where users can request to add pages
 - ✅ Author approval system for contributions
 - 📄 Page-by-page reading experience
 - 🔐 Secure JWT-based authentication
@@ -290,7 +290,10 @@ yarn prisma studio
 
 ### Deployment Platform: Railway
 
-The API is deployed on [Railway](https://railway.app) with automatic deployments from the `main` branch.
+The API is deployed on [Railway](https://railway.app) with automatic deployments configured for both production and development environments:
+
+- **Production environment**: Deploys from the `main` branch
+- **Development environment**: Deploys from the `dev` branch
 
 **Live Endpoints:**
 
@@ -308,10 +311,16 @@ NODE_ENV=production
 
 ### Deployment Process
 
+**Production:**
 1. Push changes to `main` branch
 2. Railway automatically triggers build and deployment
 3. Database migrations run automatically via Prisma
 4. New version is deployed with zero downtime
+
+**Development:**
+1. Push changes to `dev` branch
+2. Railway automatically triggers build and deployment to development environment
+3. Development environment mirrors production setup for testing
 
 ---
 
