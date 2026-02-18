@@ -27,9 +27,7 @@ export class PagesService {
 
     // Only check allowCollaboration for non-owners
     if (!isOwner && !work.allowCollaboration) {
-      throw new ForbiddenException(
-        'This work does not allow contributions',
-      );
+      throw new ForbiddenException('This work does not allow contributions');
     }
 
     // Validate content length against work's pageCharLimit
@@ -48,7 +46,8 @@ export class PagesService {
         orderBy: { pageNumber: 'desc' },
       });
 
-      const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
+      const nextPageNumber =
+        lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
 
       // Create approved page
       const page = await this.prisma.page.create({
@@ -158,9 +157,7 @@ export class PagesService {
 
     // Only allow updates to approved pages
     if (page.status !== 'approved') {
-      throw new ForbiddenException(
-        'Only approved pages can be updated',
-      );
+      throw new ForbiddenException('Only approved pages can be updated');
     }
 
     // Verify user is the page author
@@ -208,9 +205,7 @@ export class PagesService {
 
     // Only allow deletion of approved pages
     if (page.status !== 'approved') {
-      throw new ForbiddenException(
-        'Only approved pages can be deleted',
-      );
+      throw new ForbiddenException('Only approved pages can be deleted');
     }
 
     // Verify user is the page author
@@ -305,7 +300,8 @@ export class PagesService {
       orderBy: { pageNumber: 'desc' },
     });
 
-    const nextPageNumber = lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
+    const nextPageNumber =
+      lastPage && lastPage.pageNumber ? lastPage.pageNumber + 1 : 1;
 
     // Update page: status = "approved", assign pageNumber, set approvedAt
     const approvedPage = await this.prisma.page.update({

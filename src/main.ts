@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { Request, Response } from 'express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -7,6 +8,11 @@ async function bootstrap() {
 
   // Enable CORS for frontend
   app.enableCors();
+
+  // Health check endpoint
+  app.getHttpAdapter().get('/health', (_req: Request, res: Response) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  });
 
   // Enable global validation pipe
   app.useGlobalPipes(
