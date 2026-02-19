@@ -341,5 +341,3 @@ This project is [UNLICENSED](LICENSE) - Private portfolio project.
 - **Live Demo**: [https://rollingstory-web-prod.vercel.app](https://rollingstory-web-prod.vercel.app)
 
 ---
-
-**Built with ❤️ using NestJS, TypeScript, and GitHub Copilot**
