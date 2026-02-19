@@ -26,3 +26,20 @@ jobs:
           if (( $(echo "$COVERAGE < 90" | bc -l) )); then
             echo "::error ::Test coverage ($COVERAGE%) is below 90%." && exit 1
           fi
+      - name: Report PR Test Coverage status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+            const sha = context.payload.pull_request
+              ? context.payload.pull_request.head.sha
+              : context.sha;
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: sha,
+              state: state,
+              context: 'PR Test Coverage',
+              description: 'Coverage check: ' + state,
+            });
