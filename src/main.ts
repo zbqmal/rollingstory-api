@@ -11,7 +11,7 @@ async function bootstrap() {
   app.enableCors({
     origin: [
       'https://rollingstory-web-dev.vercel.app',
-      'https://rollingstory-web-prod.vercel.app/',
+      'https://rollingstory-web-prod.vercel.app',
       'http://localhost:3000', // for local development
     ],
     credentials: true,
