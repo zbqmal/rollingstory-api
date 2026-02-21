@@ -71,7 +71,7 @@ describe('AuthService', () => {
       const result = await service.register(registerDto);
 
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledTimes(2);
-      expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 10);
+      expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 12);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith({
         data: {
           email: registerDto.email,
