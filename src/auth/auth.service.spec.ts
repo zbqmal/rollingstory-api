@@ -285,13 +285,32 @@ describe('AuthService', () => {
   });
 
   describe('logout', () => {
-    it('should delete all refresh tokens and clear cookies', async () => {
-      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
+    const mockStoredToken = {
+      id: 'token-id',
+      token: 'hashedRefreshToken',
+      userId: 'user-id',
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      createdAt: new Date(),
+    };
 
-      const result = await service.logout('user-id', mockRes);
+    const rawToken = `user-id.abcdef1234567890`;
 
-      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+    it('should revoke the matched refresh token and clear cookies', async () => {
+      const req = { cookies: { refresh_token: rawToken } } as any;
+
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        mockStoredToken,
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+
+      const result = await service.logout(req, mockRes);
+
+      expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-id' },
+      });
+      expect(mockPrismaService.refreshToken.delete).toHaveBeenCalledWith({
+        where: { id: mockStoredToken.id },
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
@@ -299,7 +318,22 @@ describe('AuthService', () => {
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
         path: '/',
       });
-      expect(result).toEqual({ message: 'Logged out' });
+      expect(result).toEqual({ message: 'Logged out successfully' });
+    });
+
+    it('should clear cookies and return without DB access when no cookie', async () => {
+      const req = { cookies: {} } as any;
+
+      const result = await service.logout(req, mockRes);
+
+      expect(mockPrismaService.refreshToken.findMany).not.toHaveBeenCalled();
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
+        path: '/',
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
+      expect(result).toEqual({ message: 'Logged out successfully' });
     });
   });
 

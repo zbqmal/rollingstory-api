@@ -115,24 +115,20 @@ describe('AuthController', () => {
   });
 
   describe('logout', () => {
-    it('should call authService.logout with user id', async () => {
-      const mockUser: User = {
-        id: 'user-id',
-        email: 'test@example.com',
-        username: 'testuser',
-        password: 'hashed',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-
+    it('should call authService.logout with request and response', async () => {
+      const mockReq = {
+        cookies: { refresh_token: 'user-id.abcdef1234567890' },
+      } as any;
       const mockRes = { clearCookie: jest.fn() } as any;
 
-      mockAuthService.logout.mockResolvedValue({ message: 'Logged out' });
+      mockAuthService.logout.mockResolvedValue({
+        message: 'Logged out successfully',
+      });
 
-      const result = await controller.logout(mockUser, mockRes);
+      const result = await controller.logout(mockReq, mockRes);
 
-      expect(mockAuthService.logout).toHaveBeenCalledWith(mockUser.id, mockRes);
-      expect(result).toEqual({ message: 'Logged out' });
+      expect(mockAuthService.logout).toHaveBeenCalledWith(mockReq, mockRes);
+      expect(result).toEqual({ message: 'Logged out successfully' });
     });
   });
 

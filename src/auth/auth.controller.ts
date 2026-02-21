@@ -80,18 +80,15 @@ export class AuthController {
   }
 
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
   @Throttle({ default: { ttl: 60000, limit: 10 } })
   @HttpCode(200)
-  @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Logout user and revoke refresh token' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(
-    @GetUser() user: User,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.logout(user.id, res);
+    return this.authService.logout(req, res);
   }
 
   @Get('me')
