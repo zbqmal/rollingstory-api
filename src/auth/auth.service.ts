@@ -8,6 +8,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
+import type { Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -16,7 +18,51 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async register(dto: RegisterDto) {
+  private async issueTokens(
+    userId: string,
+    email: string,
+    res: Response,
+  ): Promise<void> {
+    const accessToken = this.jwtService.sign(
+      { sub: userId, email },
+      { expiresIn: '15m' },
+    );
+
+    // Prefix the raw token with userId so refreshTokens can scope the DB lookup
+    const rawRefreshToken = `${userId}.${crypto.randomBytes(64).toString('hex')}`;
+    const hashedRefreshToken = await bcrypt.hash(rawRefreshToken, 12);
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.prisma.refreshToken.create({
+      data: {
+        token: hashedRefreshToken,
+        userId,
+        expiresAt,
+      },
+    });
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    res.cookie('access_token', accessToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      maxAge: 15 * 60 * 1000,
+      path: '/',
+    });
+
+    res.cookie('refresh_token', rawRefreshToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: 'strict',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+  }
+
+  async register(dto: RegisterDto, res: Response) {
     // Check if email exists
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -45,11 +91,7 @@ export class AuthService {
       },
     });
 
-    // Generate JWT token
-    const token = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
+    await this.issueTokens(user.id, user.email, res);
 
     return {
       user: {
@@ -58,11 +100,10 @@ export class AuthService {
         username: user.username,
         createdAt: user.createdAt,
       },
-      token,
     };
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, res: Response) {
     // Find user by email or username
     const user = await this.prisma.user.findFirst({
       where: {
@@ -80,11 +121,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    // Generate JWT token
-    const token = this.jwtService.sign({
-      sub: user.id,
-      email: user.email,
-    });
+    await this.issueTokens(user.id, user.email, res);
 
     return {
       user: {
@@ -93,8 +130,61 @@ export class AuthService {
         username: user.username,
         createdAt: user.createdAt,
       },
-      token,
     };
+  }
+
+  async refreshTokens(refreshToken: string, res: Response) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token provided');
+    }
+
+    // Extract userId prefix from the token to scope the DB query
+    const dotIndex = refreshToken.indexOf('.');
+    if (dotIndex === -1) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+    const userId = refreshToken.substring(0, dotIndex);
+
+    const now = new Date();
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { userId, expiresAt: { gt: now } },
+    });
+
+    let matchedToken: (typeof tokens)[0] | null = null;
+    for (const t of tokens) {
+      const isMatch = await bcrypt.compare(refreshToken, t.token);
+      if (isMatch) {
+        matchedToken = t;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    await this.prisma.refreshToken.delete({ where: { id: matchedToken.id } });
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: matchedToken.userId },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException();
+    }
+
+    await this.issueTokens(user.id, user.email, res);
+
+    return { message: 'Tokens refreshed' };
+  }
+
+  async logout(userId: string, res: Response) {
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+
+    return { message: 'Logged out' };
   }
 
   async getCurrentUser(userId: string) {

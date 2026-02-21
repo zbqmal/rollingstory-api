@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
@@ -68,9 +67,7 @@ describe('Auth (e2e)', () => {
           const cookies: string[] = Array.isArray(res.headers['set-cookie'])
             ? res.headers['set-cookie']
             : [res.headers['set-cookie']];
-          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
-            true,
-          );
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(true);
         });
     });
 
@@ -144,9 +141,7 @@ describe('Auth (e2e)', () => {
           const cookies: string[] = Array.isArray(res.headers['set-cookie'])
             ? res.headers['set-cookie']
             : [res.headers['set-cookie']];
-          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
-            true,
-          );
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(true);
         });
     });
 
@@ -165,9 +160,7 @@ describe('Auth (e2e)', () => {
           const cookies: string[] = Array.isArray(res.headers['set-cookie'])
             ? res.headers['set-cookie']
             : [res.headers['set-cookie']];
-          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
-            true,
-          );
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(true);
         });
     });
 

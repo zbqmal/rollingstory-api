@@ -1,4 +1,13 @@
-import { Controller, Post, Body, Get, UseGuards, Res } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  UseGuards,
+  Res,
+  Req,
+  HttpCode,
+} from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -6,7 +15,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,7 +33,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({
     status: 201,
-    description: 'User successfully registered. Sets access_token cookie.',
+    description:
+      'User successfully registered. Sets access_token and refresh_token cookies.',
   })
   @ApiResponse({ status: 400, description: 'Bad request - validation failed' })
   @ApiResponse({ status: 409, description: 'User already exists' })
@@ -32,15 +42,7 @@ export class AuthController {
     @Body() dto: RegisterDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { user, token } = await this.authService.register(dto);
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
-    return { user };
+    return this.authService.register(dto, res);
   }
 
   @Post('login')
@@ -48,30 +50,48 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
     status: 201,
-    description: 'Successfully logged in. Sets access_token cookie.',
+    description:
+      'Successfully logged in. Sets access_token and refresh_token cookies.',
   })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() dto: LoginDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const { user, token } = await this.authService.login(dto);
-    res.cookie('access_token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/',
-    });
-    return { user };
+    return this.authService.login(dto, res);
+  }
+
+  @Post('refresh')
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Refresh access token using refresh token cookie' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'Tokens refreshed. Sets new access_token and refresh_token cookies.',
+  })
+  @ApiResponse({ status: 401, description: 'Invalid or expired refresh token' })
+  async refresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const refreshToken = req.cookies?.['refresh_token'] as string;
+    return this.authService.refreshTokens(refreshToken, res);
   }
 
   @Post('logout')
-  @ApiOperation({ summary: 'Logout user' })
-  @ApiResponse({ status: 201, description: 'Successfully logged out' })
-  logout(@Res({ passthrough: true }) res: Response) {
-    res.clearCookie('access_token', { path: '/' });
-    return { message: 'Logged out successfully' };
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { ttl: 60000, limit: 10 } })
+  @HttpCode(200)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Logout user and revoke refresh token' })
+  @ApiResponse({ status: 200, description: 'Successfully logged out' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async logout(
+    @GetUser() user: User,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.authService.logout(user.id, res);
   }
 
   @Get('me')

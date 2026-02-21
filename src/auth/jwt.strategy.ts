@@ -5,13 +5,6 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 
-const cookieOrHeaderExtractor = (req: Request): string | null => {
-  if (req?.cookies?.access_token) {
-    return req.cookies.access_token as string;
-  }
-  return ExtractJwt.fromAuthHeaderAsBearerToken()(req);
-};
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
@@ -25,7 +18,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       );
     }
     super({
-      jwtFromRequest: cookieOrHeaderExtractor,
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        (req: Request): string | null =>
+          (req?.cookies?.['access_token'] as string | undefined) ?? null,
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+      ]),
       secretOrKey: secret,
       algorithms: ['HS256'],
       passReqToCallback: false,
