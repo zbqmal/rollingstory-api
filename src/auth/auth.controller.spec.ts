@@ -40,7 +40,7 @@ describe('AuthController', () => {
         password: 'password123',
       };
 
-      const expectedResult = {
+      const serviceResult = {
         user: {
           id: 'user-id',
           email: registerDto.email,
@@ -50,12 +50,19 @@ describe('AuthController', () => {
         token: 'jwt-token',
       };
 
-      mockAuthService.register.mockResolvedValue(expectedResult);
+      const mockRes = { cookie: jest.fn() } as any;
 
-      const result = await controller.register(registerDto);
+      mockAuthService.register.mockResolvedValue(serviceResult);
+
+      const result = await controller.register(registerDto, mockRes);
 
       expect(mockAuthService.register).toHaveBeenCalledWith(registerDto);
-      expect(result).toEqual(expectedResult);
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        'jwt-token',
+        expect.objectContaining({ httpOnly: true, sameSite: 'strict' }),
+      );
+      expect(result).toEqual({ user: serviceResult.user });
     });
   });
 
@@ -66,7 +73,7 @@ describe('AuthController', () => {
         password: 'password123',
       };
 
-      const expectedResult = {
+      const serviceResult = {
         user: {
           id: 'user-id',
           email: 'test@example.com',
@@ -76,12 +83,19 @@ describe('AuthController', () => {
         token: 'jwt-token',
       };
 
-      mockAuthService.login.mockResolvedValue(expectedResult);
+      const mockRes = { cookie: jest.fn() } as any;
 
-      const result = await controller.login(loginDto);
+      mockAuthService.login.mockResolvedValue(serviceResult);
+
+      const result = await controller.login(loginDto, mockRes);
 
       expect(mockAuthService.login).toHaveBeenCalledWith(loginDto);
-      expect(result).toEqual(expectedResult);
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        'jwt-token',
+        expect.objectContaining({ httpOnly: true, sameSite: 'strict' }),
+      );
+      expect(result).toEqual({ user: serviceResult.user });
     });
   });
 
