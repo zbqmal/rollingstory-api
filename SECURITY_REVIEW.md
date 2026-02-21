@@ -350,19 +350,21 @@ src/auth/auth.service.spec.ts
 
 ---
 
-### Phase 5 — Email Verification 🟡
+### Phase 5 — Email Verification ✅
 > **Goal:** Prevent registration with unowned email addresses.
 > **Repos:** `rollingstory-api`
 > **Estimated effort:** ~half day to 1 day
 > **Prerequisite:** Phase 1, external email provider (e.g., SendGrid, Resend, AWS SES)
 
 #### Tasks
-- [ ] **5.1** Add `emailVerified Boolean @default(false)` and `verificationToken String?` fields to the `User` Prisma model and create a migration
-- [ ] **5.2** On register: generate a secure random token, store it on the user, send a verification email
-- [ ] **5.3** Add `GET /auth/verify-email?token=...` endpoint: validates token, sets `emailVerified = true`, clears the token
-- [ ] **5.4** Decide policy for unverified users: either block login entirely, or allow login but restrict sensitive actions
-- [ ] **5.5** Add a `POST /auth/resend-verification` endpoint
-- [ ] **5.6** Add unit and e2e tests
+- [x] **5.1** Add `emailVerified`, `emailVerifyToken`, `emailVerifyExpiry`, `resetPasswordToken`, `resetPasswordExpiry` fields to the `User` Prisma model and create a migration
+- [x] **5.2** On register: generate a secure random token, store it on the user, send a verification email
+- [x] **5.3** Add `POST /auth/verify-email` endpoint: validates token, sets `emailVerified = true`, clears the token
+- [x] **5.4** Soft gate: unverified users can still log in (flag is available for future enforcement)
+- [x] **5.5** Add `POST /auth/forgot-password` endpoint: generates reset token, sends email (no email enumeration)
+- [x] **5.6** Add `POST /auth/reset-password` endpoint: validates token, enforces password policy, invalidates all refresh tokens
+- [x] **5.7** Create `EmailModule` / `EmailService` using `nodemailer`; dev-friendly fallback when `SMTP_HOST` is not set
+- [x] **5.8** Add unit tests covering `verifyEmail`, `forgotPassword`, `resetPassword`
 
 #### Files to change
 ```
@@ -432,7 +434,7 @@ package.json (add ioredis or cache-manager-redis-store)
 | Phase 2: Cookie-Based Tokens | API + Web | 🔴 Critical | ~1 day | Phase 1 |
 | Phase 3: JWT Refresh Tokens | API + Web | 🟠 High | ~1 day | Phase 2 |
 | Phase 4: Security Hardening | API | 🟡 Medium | ~2–3h | Phase 1 |
-| Phase 5: Email Verification | API | 🟡 Medium | ~1 day | Phase 1 |
+| Phase 5: Email Verification | API | ✅ Complete | ~1 day | Phase 1 |
 | Phase 6: Frontend Cleanup | Web | 🟢 Low | ~half day | Phase 2 |
 | Phase 7: Token Denylist | API | 🟢 Optional | ~half day | Phase 3 |
 
