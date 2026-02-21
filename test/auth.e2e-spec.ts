@@ -7,6 +7,7 @@ import request from 'supertest';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import cookieParser from 'cookie-parser';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
@@ -21,6 +22,7 @@ describe('Auth (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -60,8 +62,15 @@ describe('Auth (e2e)', () => {
           expect(res.body.user).toBeDefined();
           expect(res.body.user.email).toBe('test@example.com');
           expect(res.body.user.username).toBe('testuser');
-          expect(res.body.token).toBeDefined();
+          expect(res.body.token).toBeUndefined();
           expect(res.body.user.password).toBeUndefined();
+          expect(res.headers['set-cookie']).toBeDefined();
+          const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+            ? res.headers['set-cookie']
+            : [res.headers['set-cookie']];
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
+            true,
+          );
         });
     });
 
@@ -130,7 +139,14 @@ describe('Auth (e2e)', () => {
         .expect(201)
         .expect((res) => {
           expect(res.body.user).toBeDefined();
-          expect(res.body.token).toBeDefined();
+          expect(res.body.token).toBeUndefined();
+          expect(res.headers['set-cookie']).toBeDefined();
+          const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+            ? res.headers['set-cookie']
+            : [res.headers['set-cookie']];
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
+            true,
+          );
         });
     });
 
@@ -144,7 +160,14 @@ describe('Auth (e2e)', () => {
         .expect(201)
         .expect((res) => {
           expect(res.body.user).toBeDefined();
-          expect(res.body.token).toBeDefined();
+          expect(res.body.token).toBeUndefined();
+          expect(res.headers['set-cookie']).toBeDefined();
+          const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+            ? res.headers['set-cookie']
+            : [res.headers['set-cookie']];
+          expect(cookies.some((c) => c.startsWith('access_token='))).toBe(
+            true,
+          );
         });
     });
 
@@ -170,7 +193,7 @@ describe('Auth (e2e)', () => {
   });
 
   describe('/auth/me (GET)', () => {
-    let token: string;
+    let cookieValue: string;
 
     beforeEach(async () => {
       const response = await request(app.getHttpServer())
@@ -181,13 +204,21 @@ describe('Auth (e2e)', () => {
           password: 'password123',
         });
 
-      token = response.body.token;
+      const setCookieHeader = response.headers['set-cookie'] as
+        | string[]
+        | string;
+      const cookieArray = Array.isArray(setCookieHeader)
+        ? setCookieHeader
+        : [setCookieHeader];
+      const accessTokenCookie =
+        cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+      cookieValue = accessTokenCookie.split(';')[0]; // "access_token=<jwt>"
     });
 
-    it('should return current user with valid token', () => {
+    it('should return current user with valid cookie', () => {
       return request(app.getHttpServer())
         .get('/auth/me')
-        .set('Authorization', `Bearer ${token}`)
+        .set('Cookie', cookieValue)
         .expect(200)
         .expect((res) => {
           expect(res.body.email).toBe('test@example.com');
@@ -207,6 +238,48 @@ describe('Auth (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('/auth/logout (POST)', () => {
+    let cookieValue: string;
+
+    beforeEach(async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'test@example.com',
+          username: 'testuser',
+          password: 'password123',
+        });
+
+      const setCookieHeader = response.headers['set-cookie'] as
+        | string[]
+        | string;
+      const cookieArray = Array.isArray(setCookieHeader)
+        ? setCookieHeader
+        : [setCookieHeader];
+      const accessTokenCookie =
+        cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+      cookieValue = accessTokenCookie.split(';')[0];
+    });
+
+    it('should logout and clear cookie', () => {
+      return request(app.getHttpServer())
+        .post('/auth/logout')
+        .set('Cookie', cookieValue)
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.message).toBe('Logged out successfully');
+          const cookies: string[] = Array.isArray(res.headers['set-cookie'])
+            ? res.headers['set-cookie']
+            : [res.headers['set-cookie'] ?? ''];
+          const clearedCookie = cookies.find((c) =>
+            c.startsWith('access_token='),
+          );
+          expect(clearedCookie).toBeDefined();
+          expect(clearedCookie).toMatch(/access_token=;/);
+        });
+    });
+  });
 });
 
 describe('Auth rate limiting (e2e)', () => {
@@ -219,6 +292,7 @@ describe('Auth rate limiting (e2e)', () => {
     }).compile();
 
     rateLimitApp = moduleFixture.createNestApplication();
+    rateLimitApp.use(cookieParser());
     rateLimitApp.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
