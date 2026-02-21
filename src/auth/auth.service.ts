@@ -9,7 +9,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 
 @Injectable()
 export class AuthService {
@@ -178,13 +178,35 @@ export class AuthService {
     return { message: 'Tokens refreshed' };
   }
 
-  async logout(userId: string, res: Response) {
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+  async logout(req: Request, res: Response) {
+    const refreshToken = req.cookies?.['refresh_token'] as string | undefined;
+
+    if (!refreshToken) {
+      res.clearCookie('access_token', { path: '/' });
+      res.clearCookie('refresh_token', { path: '/' });
+      return { message: 'Logged out successfully' };
+    }
+
+    const dotIndex = refreshToken.indexOf('.');
+    if (dotIndex !== -1) {
+      const userId = refreshToken.substring(0, dotIndex);
+      const tokens = await this.prisma.refreshToken.findMany({
+        where: { userId },
+      });
+
+      for (const t of tokens) {
+        const isMatch = await bcrypt.compare(refreshToken, t.token);
+        if (isMatch) {
+          await this.prisma.refreshToken.delete({ where: { id: t.id } });
+          break;
+        }
+      }
+    }
 
     res.clearCookie('access_token', { path: '/' });
     res.clearCookie('refresh_token', { path: '/' });
 
-    return { message: 'Logged out' };
+    return { message: 'Logged out successfully' };
   }
 
   async getCurrentUser(userId: string) {
