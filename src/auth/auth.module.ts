@@ -20,7 +20,7 @@ import { JwtStrategy } from './jwt.strategy';
         }
         return {
           secret,
-          signOptions: { expiresIn: '7d', algorithm: 'HS256' },
+          signOptions: { expiresIn: '15m', algorithm: 'HS256' },
         };
       },
     }),

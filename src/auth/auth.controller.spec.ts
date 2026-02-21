@@ -11,6 +11,8 @@ describe('AuthController', () => {
   const mockAuthService = {
     register: jest.fn(),
     login: jest.fn(),
+    refreshTokens: jest.fn(),
+    logout: jest.fn(),
     getCurrentUser: jest.fn(),
   };
 
@@ -47,7 +49,6 @@ describe('AuthController', () => {
           username: registerDto.username,
           createdAt: new Date(),
         },
-        token: 'jwt-token',
       };
 
       const mockRes = { cookie: jest.fn() } as any;
@@ -56,13 +57,11 @@ describe('AuthController', () => {
 
       const result = await controller.register(registerDto, mockRes);
 
-      expect(mockAuthService.register).toHaveBeenCalledWith(registerDto);
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'access_token',
-        'jwt-token',
-        expect.objectContaining({ httpOnly: true, sameSite: 'strict' }),
+      expect(mockAuthService.register).toHaveBeenCalledWith(
+        registerDto,
+        mockRes,
       );
-      expect(result).toEqual({ user: serviceResult.user });
+      expect(result).toEqual(serviceResult);
     });
   });
 
@@ -80,7 +79,6 @@ describe('AuthController', () => {
           username: 'testuser',
           createdAt: new Date(),
         },
-        token: 'jwt-token',
       };
 
       const mockRes = { cookie: jest.fn() } as any;
@@ -89,13 +87,52 @@ describe('AuthController', () => {
 
       const result = await controller.login(loginDto, mockRes);
 
-      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto);
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'access_token',
-        'jwt-token',
-        expect.objectContaining({ httpOnly: true, sameSite: 'strict' }),
+      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto, mockRes);
+      expect(result).toEqual(serviceResult);
+    });
+  });
+
+  describe('refresh', () => {
+    it('should call refreshTokens with cookie value', async () => {
+      const rawToken = 'user-id.abcdef1234567890';
+      const mockReq = {
+        cookies: { refresh_token: rawToken },
+      } as any;
+      const mockRes = { cookie: jest.fn() } as any;
+
+      mockAuthService.refreshTokens.mockResolvedValue({
+        message: 'Tokens refreshed',
+      });
+
+      const result = await controller.refresh(mockReq, mockRes);
+
+      expect(mockAuthService.refreshTokens).toHaveBeenCalledWith(
+        rawToken,
+        mockRes,
       );
-      expect(result).toEqual({ user: serviceResult.user });
+      expect(result).toEqual({ message: 'Tokens refreshed' });
+    });
+  });
+
+  describe('logout', () => {
+    it('should call authService.logout with user id', async () => {
+      const mockUser: User = {
+        id: 'user-id',
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'hashed',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      const mockRes = { clearCookie: jest.fn() } as any;
+
+      mockAuthService.logout.mockResolvedValue({ message: 'Logged out' });
+
+      const result = await controller.logout(mockUser, mockRes);
+
+      expect(mockAuthService.logout).toHaveBeenCalledWith(mockUser.id, mockRes);
+      expect(result).toEqual({ message: 'Logged out' });
     });
   });
 

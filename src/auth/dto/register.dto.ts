@@ -13,7 +13,9 @@ export class RegisterDto {
     example: 'user@example.com',
     description: 'User email address',
   })
-  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? value.toLowerCase().trim() : value,
+  )
   @IsEmail()
   email: string;
 
