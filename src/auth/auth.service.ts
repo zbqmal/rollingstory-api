@@ -2,9 +2,11 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
+import { EmailService } from '../email/email.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
@@ -16,6 +18,7 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   private async issueTokens(
@@ -82,14 +85,27 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
+    // Generate email verification token (32 bytes hex = 64 chars)
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiresAt = new Date();
+    verificationTokenExpiresAt.setHours(
+      verificationTokenExpiresAt.getHours() + 24,
+    );
+
     // Create user
     const user = await this.prisma.user.create({
       data: {
         email: dto.email,
         username: dto.username,
         password: hashedPassword,
+        emailVerificationToken: verificationToken,
+        emailVerificationTokenExpiresAt: verificationTokenExpiresAt,
       },
     });
+
+    // Send verification email (fire-and-forget: registration succeeds even if
+    // email delivery fails; errors are logged inside EmailService)
+    void this.emailService.sendVerificationEmail(user.email, verificationToken);
 
     await this.issueTokens(user.id, user.email, res);
 
@@ -222,7 +238,121 @@ export class AuthService {
       id: user.id,
       email: user.email,
       username: user.username,
+      isEmailVerified: user.isEmailVerified,
       createdAt: user.createdAt,
     };
+  }
+
+  async verifyEmail(token: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { emailVerificationToken: token },
+    });
+
+    if (
+      !user ||
+      !user.emailVerificationTokenExpiresAt ||
+      user.emailVerificationTokenExpiresAt < new Date()
+    ) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        isEmailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationTokenExpiresAt: null,
+      },
+    });
+
+    return { message: 'Email verified successfully' };
+  }
+
+  async resendVerification(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (user && !user.isEmailVerified) {
+      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationTokenExpiresAt = new Date();
+      verificationTokenExpiresAt.setHours(
+        verificationTokenExpiresAt.getHours() + 24,
+      );
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: verificationToken,
+          emailVerificationTokenExpiresAt: verificationTokenExpiresAt,
+        },
+      });
+
+      // Fire-and-forget: always return 200 regardless of email delivery outcome
+      // to prevent email enumeration attacks
+      void this.emailService.sendVerificationEmail(
+        user.email,
+        verificationToken,
+      );
+    }
+
+    // Always return 200 to prevent email enumeration
+    return {
+      message:
+        'If an unverified account with that email exists, a verification email has been sent',
+    };
+  }
+
+  async forgotPassword(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+
+    if (user) {
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenExpiresAt = new Date();
+      resetTokenExpiresAt.setHours(resetTokenExpiresAt.getHours() + 1);
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordResetToken: resetToken,
+          passwordResetTokenExpiresAt: resetTokenExpiresAt,
+        },
+      });
+
+      // Fire-and-forget: always return 200 regardless of email delivery outcome
+      // to prevent email enumeration attacks
+      void this.emailService.sendPasswordResetEmail(user.email, resetToken);
+    }
+
+    // Always return 200 to prevent email enumeration
+    return {
+      message:
+        'If an account with that email exists, a password reset email has been sent',
+    };
+  }
+
+  async resetPassword(token: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { passwordResetToken: token },
+    });
+
+    if (
+      !user ||
+      !user.passwordResetTokenExpiresAt ||
+      user.passwordResetTokenExpiresAt < new Date()
+    ) {
+      throw new BadRequestException('Invalid or expired password reset token');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordResetToken: null,
+        passwordResetTokenExpiresAt: null,
+      },
+    });
+
+    return { message: 'Password reset successfully' };
   }
 }

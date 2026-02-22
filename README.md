@@ -233,6 +233,9 @@ WorkCollaborator {
    JWT_SECRET="your-super-secret-jwt-key-min-64-chars"
    PORT=3001
    NODE_ENV=development
+   RESEND_API_KEY="re_your_resend_api_key"
+   EMAIL_FROM="noreply@yourdomain.com"
+   FRONTEND_URL="http://localhost:3000"
    ```
 
 4. **Start PostgreSQL with Docker** (optional)
@@ -304,6 +307,9 @@ DATABASE_URL=postgresql://user:password@host:port/database
 JWT_SECRET=production-secret-key-min-64-chars
 PORT=3001
 NODE_ENV=production
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=noreply@yourdomain.com
+FRONTEND_URL=https://yourfrontenddomain.com
 ```
 
 ### Deployment Process
