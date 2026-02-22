@@ -14,7 +14,16 @@ model User {
   password        String              // bcrypt hashed
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
-  
+
+  // Email verification
+  isEmailVerified                 Boolean   @default(false)
+  emailVerificationToken          String?   @unique
+  emailVerificationTokenExpiresAt DateTime?
+
+  // Password reset
+  passwordResetToken          String?   @unique
+  passwordResetTokenExpiresAt DateTime?
+
   // Relations
   authoredWorks   Work[]              @relation("AuthoredWorks")
   pages           Page[]

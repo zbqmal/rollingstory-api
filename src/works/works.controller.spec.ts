@@ -19,6 +19,11 @@ describe('WorksController', () => {
     email: 'test@example.com',
     username: 'testuser',
     password: 'hashedPassword',
+    isEmailVerified: false,
+    emailVerificationToken: null,
+    emailVerificationTokenExpiresAt: null,
+    passwordResetToken: null,
+    passwordResetTokenExpiresAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
