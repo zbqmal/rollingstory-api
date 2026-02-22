@@ -43,7 +43,10 @@ describe('EmailService', () => {
 
   describe('sendVerificationEmail', () => {
     it('should send a verification email with a link containing the token', async () => {
-      mockEmailsSend.mockResolvedValue({ data: { id: 'email-id' }, error: null });
+      mockEmailsSend.mockResolvedValue({
+        data: { id: 'email-id' },
+        error: null,
+      });
 
       await service.sendVerificationEmail('user@example.com', 'abc123token');
 
@@ -73,7 +76,10 @@ describe('EmailService', () => {
 
   describe('sendPasswordResetEmail', () => {
     it('should send a password reset email with a link containing the token', async () => {
-      mockEmailsSend.mockResolvedValue({ data: { id: 'email-id' }, error: null });
+      mockEmailsSend.mockResolvedValue({
+        data: { id: 'email-id' },
+        error: null,
+      });
 
       await service.sendPasswordResetEmail('user@example.com', 'resettoken');
 

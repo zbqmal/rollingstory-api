@@ -88,10 +88,7 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Logout user and revoke refresh token' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
-  async logout(
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     return this.authService.logout(req, res);
   }
 
@@ -118,7 +115,10 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Resend email verification link' })
-  @ApiResponse({ status: 200, description: 'Verification email sent if account exists' })
+  @ApiResponse({
+    status: 200,
+    description: 'Verification email sent if account exists',
+  })
   async resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerification(dto.email);
   }
@@ -127,7 +127,10 @@ export class AuthController {
   @Throttle({ default: { ttl: 60000, limit: 3 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Request password reset email' })
-  @ApiResponse({ status: 200, description: 'Password reset email sent if account exists' })
+  @ApiResponse({
+    status: 200,
+    description: 'Password reset email sent if account exists',
+  })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }

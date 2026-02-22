@@ -28,7 +28,7 @@
 
 - Update `README.md` files **only if the changes meaningfully affect** usage, setup, configuration, or developer experience.
 - Avoid unnecessary expansion of documentation — keep it concise and accurate.
-- Do **not** add inline comments for self-evident code. Comment only when the *why* is non-obvious.
+- Do **not** add inline comments for self-evident code. Comment only when the _why_ is non-obvious.
 
 ---
 

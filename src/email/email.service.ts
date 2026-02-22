@@ -11,10 +11,8 @@ export class EmailService {
 
   constructor(private config: ConfigService) {
     const apiKey = this.config.get<string>('RESEND_API_KEY') ?? '';
-    this.from =
-      this.config.get<string>('EMAIL_FROM') ?? 'noreply@example.com';
-    this.frontendUrl =
-      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3000';
+    this.from = this.config.get<string>('EMAIL_FROM') ?? '';
+    this.frontendUrl = this.config.get<string>('FRONTEND_URL') ?? '';
     this.resend = new Resend(apiKey);
   }
 

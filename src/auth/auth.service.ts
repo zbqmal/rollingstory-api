@@ -85,15 +85,6 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
-    // Create user
-    const user = await this.prisma.user.create({
-      data: {
-        email: dto.email,
-        username: dto.username,
-        password: hashedPassword,
-      },
-    });
-
     // Generate email verification token (32 bytes hex = 64 chars)
     const verificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenExpiresAt = new Date();
@@ -101,9 +92,12 @@ export class AuthService {
       verificationTokenExpiresAt.getHours() + 24,
     );
 
-    await this.prisma.user.update({
-      where: { id: user.id },
+    // Create user
+    const user = await this.prisma.user.create({
       data: {
+        email: dto.email,
+        username: dto.username,
+        password: hashedPassword,
         emailVerificationToken: verificationToken,
         emailVerificationTokenExpiresAt: verificationTokenExpiresAt,
       },

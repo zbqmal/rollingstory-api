@@ -187,12 +187,15 @@ describe('AuthController', () => {
     it('should call authService.resendVerification with email', async () => {
       const dto = { email: 'user@example.com' };
       mockAuthService.resendVerification.mockResolvedValue({
-        message: 'If an unverified account with that email exists, a verification email has been sent',
+        message:
+          'If an unverified account with that email exists, a verification email has been sent',
       });
 
       const result = await controller.resendVerification(dto);
 
-      expect(mockAuthService.resendVerification).toHaveBeenCalledWith(dto.email);
+      expect(mockAuthService.resendVerification).toHaveBeenCalledWith(
+        dto.email,
+      );
       expect(result.message).toBeDefined();
     });
   });
@@ -201,7 +204,8 @@ describe('AuthController', () => {
     it('should call authService.forgotPassword with email', async () => {
       const dto = { email: 'user@example.com' };
       mockAuthService.forgotPassword.mockResolvedValue({
-        message: 'If an account with that email exists, a password reset email has been sent',
+        message:
+          'If an account with that email exists, a password reset email has been sent',
       });
 
       const result = await controller.forgotPassword(dto);

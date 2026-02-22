@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
-import { ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  ConflictException,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
@@ -96,22 +100,18 @@ describe('AuthService', () => {
 
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledTimes(2);
       expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 12);
-      expect(mockPrismaService.user.create).toHaveBeenCalledWith({
-        data: {
-          email: registerDto.email,
-          username: registerDto.username,
-          password: hashedPassword,
-        },
-      });
-      expect(mockPrismaService.user.update).toHaveBeenCalledWith(
+      expect(mockPrismaService.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: { id: mockUser.id },
           data: expect.objectContaining({
+            email: registerDto.email,
+            username: registerDto.username,
+            password: hashedPassword,
             emailVerificationToken: expect.any(String),
             emailVerificationTokenExpiresAt: expect.any(Date),
           }),
         }),
       );
+      expect(mockPrismaService.user.update).not.toHaveBeenCalled();
       expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
         mockUser.email,
         expect.any(String),
@@ -273,7 +273,10 @@ describe('AuthService', () => {
       expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
         where: { userId: mockUser.id, expiresAt: { gt: expect.any(Date) } },
       });
-      expect(bcrypt.compare).toHaveBeenCalledWith(rawToken, mockStoredToken.token);
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        rawToken,
+        mockStoredToken.token,
+      );
       expect(mockPrismaService.refreshToken.delete).toHaveBeenCalledWith({
         where: { id: mockStoredToken.id },
       });
@@ -303,9 +306,9 @@ describe('AuthService', () => {
       ]);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(
-        service.refreshTokens(rawToken, mockRes),
-      ).rejects.toThrow(UnauthorizedException);
+      await expect(service.refreshTokens(rawToken, mockRes)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
