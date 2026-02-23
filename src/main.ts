@@ -9,7 +9,6 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.use(helmet());
   app.use(cookieParser());
 
   // Enable CORS for frontend
@@ -23,6 +22,14 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
     exposedHeaders: ['Set-Cookie'],
   });
+
+  // helmet after CORS: configure CORP to allow cross-origin responses
+  // so that Set-Cookie on login/register reaches the Vercel frontend.
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   // Health check endpoint
   app.getHttpAdapter().get('/health', (_req: Request, res: Response) => {

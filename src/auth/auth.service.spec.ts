@@ -350,14 +350,7 @@ describe('AuthService', () => {
       mockPrismaService.refreshToken.create.mockResolvedValue({});
     };
 
-    const originalEnv = process.env.NODE_ENV;
-
-    afterEach(() => {
-      process.env.NODE_ENV = originalEnv;
-    });
-
-    it('localhost:3000 in development → sameSite: none, secure: false', async () => {
-      process.env.NODE_ENV = 'development';
+    it('localhost:3000 → sameSite: none, secure: false (regardless of NODE_ENV)', async () => {
       setupRegisterMocks();
       const req = { headers: { origin: 'http://localhost:3000' } } as any;
 
@@ -370,8 +363,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('web-dev.vercel.app in development → sameSite: none, secure: true', async () => {
-      process.env.NODE_ENV = 'development';
+    it('web-dev.vercel.app → sameSite: none, secure: true (regardless of NODE_ENV)', async () => {
       setupRegisterMocks();
       const req = {
         headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
@@ -386,8 +378,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('web-prod.vercel.app in production → sameSite: none, secure: true', async () => {
-      process.env.NODE_ENV = 'production';
+    it('web-prod.vercel.app → sameSite: none, secure: true (regardless of NODE_ENV)', async () => {
       setupRegisterMocks();
       const req = {
         headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
@@ -399,57 +390,10 @@ describe('AuthService', () => {
         'access_token',
         expect.any(String),
         expect.objectContaining({ sameSite: 'none', secure: true }),
-      );
-    });
-
-    it('localhost:3000 in production → sameSite: strict, secure: true', async () => {
-      process.env.NODE_ENV = 'production';
-      setupRegisterMocks();
-      const req = { headers: { origin: 'http://localhost:3000' } } as any;
-
-      await service.register(registerDto, mockRes, req);
-
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'access_token',
-        expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
-      );
-    });
-
-    it('web-dev.vercel.app in production → sameSite: strict, secure: true', async () => {
-      process.env.NODE_ENV = 'production';
-      setupRegisterMocks();
-      const req = {
-        headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
-      } as any;
-
-      await service.register(registerDto, mockRes, req);
-
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'access_token',
-        expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
-      );
-    });
-
-    it('web-prod.vercel.app in development → sameSite: strict, secure: true', async () => {
-      process.env.NODE_ENV = 'development';
-      setupRegisterMocks();
-      const req = {
-        headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
-      } as any;
-
-      await service.register(registerDto, mockRes, req);
-
-      expect(mockRes.cookie).toHaveBeenCalledWith(
-        'access_token',
-        expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
       );
     });
 
     it('no origin header → sameSite: strict, secure: true', async () => {
-      process.env.NODE_ENV = 'development';
       setupRegisterMocks();
       const req = { headers: {} } as any;
 
@@ -463,7 +407,6 @@ describe('AuthService', () => {
     });
 
     it('unknown origin → sameSite: strict, secure: true', async () => {
-      process.env.NODE_ENV = 'development';
       setupRegisterMocks();
       const req = {
         headers: { origin: 'https://unknown-site.example.com' },
@@ -491,7 +434,7 @@ describe('AuthService', () => {
     const rawToken = `user-id.abcdef1234567890`;
 
     it('should revoke the matched refresh token and clear cookies', async () => {
-      const req = { cookies: { refresh_token: rawToken } } as any;
+      const req = { cookies: { refresh_token: rawToken }, headers: {} } as any;
 
       mockPrismaService.refreshToken.findMany.mockResolvedValue([
         mockStoredToken,
@@ -509,24 +452,32 @@ describe('AuthService', () => {
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
+        sameSite: 'strict',
+        secure: true,
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
         path: '/',
+        sameSite: 'strict',
+        secure: true,
       });
       expect(result).toEqual({ message: 'Logged out successfully' });
     });
 
     it('should clear cookies and return without DB access when no cookie', async () => {
-      const req = { cookies: {} } as any;
+      const req = { cookies: {}, headers: {} } as any;
 
       const result = await service.logout(req, mockRes);
 
       expect(mockPrismaService.refreshToken.findMany).not.toHaveBeenCalled();
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
+        sameSite: 'strict',
+        secure: true,
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
         path: '/',
+        sameSite: 'strict',
+        secure: true,
       });
       expect(result).toEqual({ message: 'Logged out successfully' });
     });
@@ -540,6 +491,7 @@ describe('AuthService', () => {
           access_token: 'valid.access.token',
           refresh_token: rawToken,
         },
+        headers: {},
       } as any;
 
       mockJwtService.decode.mockReturnValue({ jti, exp });
@@ -564,7 +516,7 @@ describe('AuthService', () => {
     });
 
     it('should skip Redis denylist if access_token cookie is absent', async () => {
-      const req = { cookies: { refresh_token: rawToken } } as any;
+      const req = { cookies: { refresh_token: rawToken }, headers: {} } as any;
 
       mockPrismaService.refreshToken.findMany.mockResolvedValue([
         mockStoredToken,
@@ -585,6 +537,7 @@ describe('AuthService', () => {
           access_token: 'valid.access.token',
           refresh_token: rawToken,
         },
+        headers: {},
       } as any;
 
       mockJwtService.decode.mockReturnValue({ jti: 'some-jti', exp });
@@ -600,6 +553,8 @@ describe('AuthService', () => {
       expect(mockPrismaService.refreshToken.delete).toHaveBeenCalled();
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
+        sameSite: 'strict',
+        secure: true,
       });
       expect(result).toEqual({ message: 'Logged out successfully' });
     });

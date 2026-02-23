@@ -32,19 +32,22 @@ export class AuthService {
     sameSite: 'none' | 'strict';
     secure: boolean;
   } {
-    const env = process.env.NODE_ENV;
-    const allowedOrigins =
-      env === 'production'
-        ? new Set(['https://rollingstory-web-prod.vercel.app'])
-        : new Set([
-            'http://localhost:3000',
-            'https://rollingstory-web-dev.vercel.app',
-          ]);
+    // All legitimate cross-site origins regardless of environment.
+    // NODE_ENV is intentionally NOT used here: Railway sets NODE_ENV=production
+    // for all deployments (dev and prod), making environment-conditional logic unreliable.
+    const crossSiteOrigins = new Set([
+      'http://localhost:3000',
+      'https://rollingstory-web-dev.vercel.app',
+      'https://rollingstory-web-prod.vercel.app',
+    ]);
 
     const origin = req.headers['origin'] as string | undefined;
-    if (origin && allowedOrigins.has(origin)) {
+    if (origin && crossSiteOrigins.has(origin)) {
+      // SameSite=None is required for cross-site cookie sending (vercel.app → railway.app).
+      // Secure must match the origin scheme: false for http://localhost, true for https://*.
       return { sameSite: 'none', secure: origin.startsWith('https://') };
     }
+    // Same-site or unknown origin: strict is safe.
     return { sameSite: 'strict', secure: true };
   }
 
@@ -248,9 +251,11 @@ export class AuthService {
       }
     }
 
+    const { sameSite, secure } = this.getCookieOptions(req);
+
     if (!refreshToken) {
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
+      res.clearCookie('access_token', { path: '/', sameSite, secure });
+      res.clearCookie('refresh_token', { path: '/', sameSite, secure });
       return { message: 'Logged out successfully' };
     }
 
@@ -270,8 +275,8 @@ export class AuthService {
       }
     }
 
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
+    res.clearCookie('access_token', { path: '/', sameSite, secure });
+    res.clearCookie('refresh_token', { path: '/', sameSite, secure });
 
     return { message: 'Logged out successfully' };
   }
