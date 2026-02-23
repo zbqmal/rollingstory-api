@@ -55,15 +55,17 @@ describe('AuthController', () => {
         },
       };
 
+      const mockReq = { headers: {} } as any;
       const mockRes = { cookie: jest.fn() } as any;
 
       mockAuthService.register.mockResolvedValue(serviceResult);
 
-      const result = await controller.register(registerDto, mockRes);
+      const result = await controller.register(registerDto, mockReq, mockRes);
 
       expect(mockAuthService.register).toHaveBeenCalledWith(
         registerDto,
         mockRes,
+        mockReq,
       );
       expect(result).toEqual(serviceResult);
     });
@@ -85,13 +87,14 @@ describe('AuthController', () => {
         },
       };
 
+      const mockReq = { headers: {} } as any;
       const mockRes = { cookie: jest.fn() } as any;
 
       mockAuthService.login.mockResolvedValue(serviceResult);
 
-      const result = await controller.login(loginDto, mockRes);
+      const result = await controller.login(loginDto, mockReq, mockRes);
 
-      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto, mockRes);
+      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto, mockRes, mockReq);
       expect(result).toEqual(serviceResult);
     });
   });
@@ -113,6 +116,7 @@ describe('AuthController', () => {
       expect(mockAuthService.refreshTokens).toHaveBeenCalledWith(
         rawToken,
         mockRes,
+        mockReq,
       );
       expect(result).toEqual({ message: 'Tokens refreshed' });
     });
