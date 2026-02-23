@@ -447,34 +447,49 @@ package.json (add zustand)
 
 #### Tasks
 
-- [ ] **7.1** Add Redis to the stack (`ioredis` or `@nestjs/cache-manager` with Redis adapter)
-- [ ] **7.2** On `POST /auth/logout`: add the current access token's `jti` (JWT ID claim) to a Redis denylist with TTL equal to the token's remaining lifetime
-- [ ] **7.3** In `JwtStrategy.validate()`: check if the token's `jti` is in the denylist; if so, throw `UnauthorizedException`
-- [ ] **7.4** Add `jti` (unique ID) to JWT payload on signing in `auth.service.ts`
+- [x] **7.1** Add Redis to the stack (`ioredis` — `src/redis/redis.module.ts`, `REDIS_URL` env variable, default: `redis://localhost:6379`)
+- [x] **7.2** Add `jti` (unique UUID) to JWT payload on signing in `auth.service.ts` `issueTokens()`
+- [x] **7.3** On `POST /auth/logout`: decode the `access_token` cookie, extract `jti` + `exp`, store `denylist:<jti>` in Redis with TTL = remaining lifetime (graceful degradation: logs warning, continues on Redis error)
+- [x] **7.4** In `JwtStrategy.validate()`: check if `jti` is in Redis denylist; throw `UnauthorizedException('Token has been revoked')` if so; fail-open if Redis is unreachable
 
-#### Files to change
+#### Files changed
 
 ```
-src/auth/auth.service.ts
-src/auth/jwt.strategy.ts
-src/auth/auth.controller.ts
-src/redis/ (new module)
-package.json (add ioredis or cache-manager-redis-store)
+src/redis/redis.module.ts         (new — global Redis provider)
+src/auth/auth.service.ts          (jti in issueTokens; denylist in logout)
+src/auth/jwt.strategy.ts          (denylist check in validate)
+src/auth/auth.module.ts           (import RedisModule)
+src/app.module.ts                 (import RedisModule globally)
+src/auth/auth.service.spec.ts     (added logout denylist tests)
+src/auth/jwt.strategy.spec.ts     (new — validate denylist tests)
+package.json                      (added ioredis)
+README.md                         (documented REDIS_URL)
 ```
+
+---
+
+## Phase 7: Token Denylist — Summary of Changes
+
+Implemented a Redis-backed access token denylist to enable immediate revocation on logout:
+
+- **`src/redis/redis.module.ts`** — New global NestJS module that provides an `ioredis` client via the `REDIS_CLIENT` injection token. Connection URL is read from `REDIS_URL` (defaults to `redis://localhost:6379`).
+- **`src/auth/auth.service.ts`** — `issueTokens()` now generates a `jti` (UUID) and includes it in the JWT payload. `logout()` reads the `access_token` cookie, decodes it, and stores `denylist:<jti>` in Redis with TTL = `max(exp − now, 1)`. Redis errors are caught and logged; logout still clears cookies and revokes the refresh token regardless.
+- **`src/auth/jwt.strategy.ts`** — `validate()` checks `denylist:<jti>` in Redis before allowing the request. If the key exists, throws `UnauthorizedException('Token has been revoked')`. If Redis is unreachable, the check is skipped (fail-open behaviour).
+- **Tests** — 8 new tests covering: jti stored in Redis on logout, correct TTL, skip when no access_token cookie, graceful Redis failure, validate throws on denylisted jti, validate succeeds when not denylisted, fail-open on Redis error, and skip check when jti absent.
 
 ---
 
 ## Summary Table
 
-| Phase                        | Scope     | Priority    | Effort    | Prerequisite |
-| ---------------------------- | --------- | ----------- | --------- | ------------ |
-| Phase 1: Critical Hardening  | API       | 🔴 Critical | ~2–3h     | None         |
-| Phase 2: Cookie-Based Tokens | API + Web | 🔴 Critical | ~1 day    | Phase 1      |
-| Phase 3: JWT Refresh Tokens  | API + Web | 🟠 High     | ~1 day    | Phase 2      |
-| Phase 4: Security Hardening  | API       | 🟡 Medium   | ~2–3h     | Phase 1      |
-| Phase 5: Email Verification  | API       | 🟡 Medium   | ~1 day    | Phase 1      |
-| Phase 6: Frontend Cleanup    | Web       | 🟢 Low      | ~half day | Phase 2      |
-| Phase 7: Token Denylist      | API       | 🟢 Optional | ~half day | Phase 3      |
+| Phase                        | Scope     | Priority    | Effort    | Prerequisite | Status      |
+| ---------------------------- | --------- | ----------- | --------- | ------------ | ----------- |
+| Phase 1: Critical Hardening  | API       | 🔴 Critical | ~2–3h     | None         |             |
+| Phase 2: Cookie-Based Tokens | API + Web | 🔴 Critical | ~1 day    | Phase 1      |             |
+| Phase 3: JWT Refresh Tokens  | API + Web | 🟠 High     | ~1 day    | Phase 2      |             |
+| Phase 4: Security Hardening  | API       | 🟡 Medium   | ~2–3h     | Phase 1      |             |
+| Phase 5: Email Verification  | API       | 🟡 Medium   | ~1 day    | Phase 1      |             |
+| Phase 6: Frontend Cleanup    | Web       | 🟢 Low      | ~half day | Phase 2      |             |
+| Phase 7: Token Denylist      | API       | 🟢 Optional | ~half day | Phase 3      | ✅ Complete |
 
 ---
 

@@ -8,6 +8,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { WorksModule } from './works/works.module';
 import { PagesModule } from './pages/pages.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PagesModule } from './pages/pages.module';
     }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
     PrismaModule,
+    RedisModule,
     AuthModule,
     WorksModule,
     PagesModule,

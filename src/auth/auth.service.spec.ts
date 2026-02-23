@@ -8,6 +8,7 @@ import {
 import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import * as bcrypt from 'bcrypt';
 
 jest.mock('bcrypt');
@@ -32,11 +33,17 @@ describe('AuthService', () => {
 
   const mockJwtService = {
     sign: jest.fn(),
+    decode: jest.fn(),
   };
 
   const mockEmailService = {
     sendVerificationEmail: jest.fn().mockResolvedValue(undefined),
     sendPasswordResetEmail: jest.fn().mockResolvedValue(undefined),
+  };
+
+  const mockRedis = {
+    set: jest.fn().mockResolvedValue('OK'),
+    get: jest.fn().mockResolvedValue(null),
   };
 
   const mockRes = {
@@ -59,6 +66,10 @@ describe('AuthService', () => {
         {
           provide: EmailService,
           useValue: mockEmailService,
+        },
+        {
+          provide: REDIS_CLIENT,
+          useValue: mockRedis,
         },
       ],
     }).compile();
@@ -359,6 +370,79 @@ describe('AuthService', () => {
         path: '/',
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
+      expect(result).toEqual({ message: 'Logged out successfully' });
+    });
+
+    it('should store jti in Redis with correct TTL on logout', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const exp = now + 600; // 10 minutes remaining
+      const jti = 'test-jti-uuid';
+      const req = {
+        cookies: {
+          access_token: 'valid.access.token',
+          refresh_token: rawToken,
+        },
+      } as any;
+
+      mockJwtService.decode.mockReturnValue({ jti, exp });
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        mockStoredToken,
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+
+      await service.logout(req, mockRes);
+
+      expect(mockJwtService.decode).toHaveBeenCalledWith('valid.access.token');
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        `denylist:${jti}`,
+        '1',
+        'EX',
+        expect.any(Number),
+      );
+      const ttlArg = mockRedis.set.mock.calls[0][3] as number;
+      expect(ttlArg).toBeGreaterThanOrEqual(1);
+      expect(ttlArg).toBeLessThanOrEqual(600);
+    });
+
+    it('should skip Redis denylist if access_token cookie is absent', async () => {
+      const req = { cookies: { refresh_token: rawToken } } as any;
+
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        mockStoredToken,
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+
+      await service.logout(req, mockRes);
+
+      expect(mockRedis.set).not.toHaveBeenCalled();
+    });
+
+    it('should still clear cookies and revoke refresh token when Redis fails', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const exp = now + 600;
+      const req = {
+        cookies: {
+          access_token: 'valid.access.token',
+          refresh_token: rawToken,
+        },
+      } as any;
+
+      mockJwtService.decode.mockReturnValue({ jti: 'some-jti', exp });
+      mockRedis.set.mockRejectedValueOnce(new Error('Redis unreachable'));
+      mockPrismaService.refreshToken.findMany.mockResolvedValue([
+        mockStoredToken,
+      ]);
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+
+      const result = await service.logout(req, mockRes);
+
+      expect(mockPrismaService.refreshToken.delete).toHaveBeenCalled();
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
       });
       expect(result).toEqual({ message: 'Logged out successfully' });

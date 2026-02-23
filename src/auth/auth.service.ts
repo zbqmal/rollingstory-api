@@ -3,22 +3,29 @@ import {
   ConflictException,
   UnauthorizedException,
   BadRequestException,
+  Inject,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
+import type { Redis } from 'ioredis';
 import type { Request, Response } from 'express';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private emailService: EmailService,
+    @Inject(REDIS_CLIENT) private redis: Redis,
   ) {}
 
   private async issueTokens(
@@ -26,8 +33,9 @@ export class AuthService {
     email: string,
     res: Response,
   ): Promise<void> {
+    const jti = crypto.randomUUID();
     const accessToken = this.jwtService.sign(
-      { sub: userId, email },
+      { sub: userId, email, jti },
       { expiresIn: '15m' },
     );
 
@@ -196,6 +204,28 @@ export class AuthService {
 
   async logout(req: Request, res: Response) {
     const refreshToken = req.cookies?.['refresh_token'] as string | undefined;
+    const accessToken = req.cookies?.['access_token'] as string | undefined;
+
+    // Denylist the access token jti in Redis if present
+    if (accessToken) {
+      try {
+        const decoded = this.jwtService.decode(accessToken) as {
+          jti?: string;
+          exp?: number;
+        } | null;
+        if (decoded?.jti && decoded?.exp) {
+          const ttl = Math.max(
+            decoded.exp - Math.floor(Date.now() / 1000),
+            1,
+          );
+          await this.redis.set(`denylist:${decoded.jti}`, '1', 'EX', ttl);
+        }
+      } catch (err) {
+        this.logger.warn(
+          `Failed to denylist access token jti: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     if (!refreshToken) {
       res.clearCookie('access_token', { path: '/' });
