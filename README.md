@@ -236,6 +236,7 @@ WorkCollaborator {
    RESEND_API_KEY="re_your_resend_api_key"
    EMAIL_FROM="noreply@yourdomain.com"
    FRONTEND_URL="http://localhost:3000"
+   REDIS_URL="redis://localhost:6379"
    ```
 
 4. **Start PostgreSQL with Docker** (optional)
@@ -310,6 +311,7 @@ NODE_ENV=production
 RESEND_API_KEY=re_your_resend_api_key
 EMAIL_FROM=noreply@yourdomain.com
 FRONTEND_URL=https://yourfrontenddomain.com
+REDIS_URL=redis://user:password@host:6379
 ```
 
 ### Deployment Process
