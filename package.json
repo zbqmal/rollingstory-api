@@ -7,6 +7,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "prepare": "husky",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -62,7 +63,9 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
+    "husky": "^9.0.0",
     "jest": "^30.0.0",
+    "lint-staged": "^15.0.0",
     "prettier": "^3.4.2",
     "prisma": "5",
     "source-map-support": "^0.5.21",
@@ -90,5 +93,10 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
+  },
+  "lint-staged": {
+    "**/*.{ts,js,json}": [
+      "prettier --write"
+    ]
   }
 }
