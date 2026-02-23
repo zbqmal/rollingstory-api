@@ -51,6 +51,10 @@ describe('AuthService', () => {
     clearCookie: jest.fn(),
   } as any;
 
+  const mockReq = {
+    headers: {},
+  } as any;
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -107,7 +111,7 @@ describe('AuthService', () => {
       mockJwtService.sign.mockReturnValue(mockToken);
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
-      const result = await service.register(registerDto, mockRes);
+      const result = await service.register(registerDto, mockRes, mockReq);
 
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledTimes(2);
       expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 12);
@@ -152,7 +156,7 @@ describe('AuthService', () => {
         id: 'existing-user',
       });
 
-      await expect(service.register(registerDto, mockRes)).rejects.toThrow(
+      await expect(service.register(registerDto, mockRes, mockReq)).rejects.toThrow(
         ConflictException,
       );
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
@@ -165,7 +169,7 @@ describe('AuthService', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'existing-user' });
 
-      await expect(service.register(registerDto, mockRes)).rejects.toThrow(
+      await expect(service.register(registerDto, mockRes, mockReq)).rejects.toThrow(
         ConflictException,
       );
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
@@ -197,7 +201,7 @@ describe('AuthService', () => {
       mockJwtService.sign.mockReturnValue(mockToken);
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
-      const result = await service.login(loginDto, mockRes);
+      const result = await service.login(loginDto, mockRes, mockReq);
 
       expect(mockPrismaService.user.findFirst).toHaveBeenCalledWith({
         where: {
@@ -229,7 +233,7 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException if user not found', async () => {
       mockPrismaService.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.login(loginDto, mockRes)).rejects.toThrow(
+      await expect(service.login(loginDto, mockRes, mockReq)).rejects.toThrow(
         UnauthorizedException,
       );
       expect(mockPrismaService.user.findFirst).toHaveBeenCalled();
@@ -239,7 +243,7 @@ describe('AuthService', () => {
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(service.login(loginDto, mockRes)).rejects.toThrow(
+      await expect(service.login(loginDto, mockRes, mockReq)).rejects.toThrow(
         UnauthorizedException,
       );
       expect(bcrypt.compare).toHaveBeenCalledWith(
@@ -279,7 +283,7 @@ describe('AuthService', () => {
       mockJwtService.sign.mockReturnValue('new-access-token');
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
-      const result = await service.refreshTokens(rawToken, mockRes);
+      const result = await service.refreshTokens(rawToken, mockRes, mockReq);
 
       expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
         where: { userId: mockUser.id, expiresAt: { gt: expect.any(Date) } },
@@ -300,14 +304,14 @@ describe('AuthService', () => {
     });
 
     it('should throw UnauthorizedException if no refresh token provided', async () => {
-      await expect(service.refreshTokens('', mockRes)).rejects.toThrow(
+      await expect(service.refreshTokens('', mockRes, mockReq)).rejects.toThrow(
         UnauthorizedException,
       );
     });
 
     it('should throw UnauthorizedException if token has no dot separator', async () => {
       await expect(
-        service.refreshTokens('invalidtoken', mockRes),
+        service.refreshTokens('invalidtoken', mockRes, mockReq),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -317,8 +321,160 @@ describe('AuthService', () => {
       ]);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(service.refreshTokens(rawToken, mockRes)).rejects.toThrow(
+      await expect(service.refreshTokens(rawToken, mockRes, mockReq)).rejects.toThrow(
         UnauthorizedException,
+      );
+    });
+  });
+
+  describe('getCookieOptions / issueTokens cookie attributes', () => {
+    const registerDto = {
+      email: 'test@example.com',
+      username: 'testuser',
+      password: 'password123',
+    };
+    const mockUser = {
+      id: 'user-id',
+      email: registerDto.email,
+      username: registerDto.username,
+      password: 'hashedPassword',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const setupRegisterMocks = () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
+      mockPrismaService.user.create.mockResolvedValue(mockUser);
+      mockJwtService.sign.mockReturnValue('jwt-token');
+      mockPrismaService.refreshToken.create.mockResolvedValue({});
+    };
+
+    const originalEnv = process.env.NODE_ENV;
+
+    afterEach(() => {
+      process.env.NODE_ENV = originalEnv;
+    });
+
+    it('localhost:3000 in development → sameSite: none, secure: false', async () => {
+      process.env.NODE_ENV = 'development';
+      setupRegisterMocks();
+      const req = { headers: { origin: 'http://localhost:3000' } } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'none', secure: false }),
+      );
+    });
+
+    it('web-dev.vercel.app in development → sameSite: none, secure: true', async () => {
+      process.env.NODE_ENV = 'development';
+      setupRegisterMocks();
+      const req = {
+        headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
+      } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'none', secure: true }),
+      );
+    });
+
+    it('web-prod.vercel.app in production → sameSite: none, secure: true', async () => {
+      process.env.NODE_ENV = 'production';
+      setupRegisterMocks();
+      const req = {
+        headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
+      } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'none', secure: true }),
+      );
+    });
+
+    it('localhost:3000 in production → sameSite: strict, secure: true', async () => {
+      process.env.NODE_ENV = 'production';
+      setupRegisterMocks();
+      const req = { headers: { origin: 'http://localhost:3000' } } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'strict', secure: true }),
+      );
+    });
+
+    it('web-dev.vercel.app in production → sameSite: strict, secure: true', async () => {
+      process.env.NODE_ENV = 'production';
+      setupRegisterMocks();
+      const req = {
+        headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
+      } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'strict', secure: true }),
+      );
+    });
+
+    it('web-prod.vercel.app in development → sameSite: strict, secure: true', async () => {
+      process.env.NODE_ENV = 'development';
+      setupRegisterMocks();
+      const req = {
+        headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
+      } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'strict', secure: true }),
+      );
+    });
+
+    it('no origin header → sameSite: strict, secure: true', async () => {
+      process.env.NODE_ENV = 'development';
+      setupRegisterMocks();
+      const req = { headers: {} } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'strict', secure: true }),
+      );
+    });
+
+    it('unknown origin → sameSite: strict, secure: true', async () => {
+      process.env.NODE_ENV = 'development';
+      setupRegisterMocks();
+      const req = {
+        headers: { origin: 'https://unknown-site.example.com' },
+      } as any;
+
+      await service.register(registerDto, mockRes, req);
+
+      expect(mockRes.cookie).toHaveBeenCalledWith(
+        'access_token',
+        expect.any(String),
+        expect.objectContaining({ sameSite: 'strict', secure: true }),
       );
     });
   });

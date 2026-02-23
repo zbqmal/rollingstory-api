@@ -44,9 +44,10 @@ export class AuthController {
   @ApiResponse({ status: 409, description: 'User already exists' })
   async register(
     @Body() dto: RegisterDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.register(dto, res);
+    return this.authService.register(dto, res, req);
   }
 
   @Post('login')
@@ -60,9 +61,10 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
   async login(
     @Body() dto: LoginDto,
+    @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.login(dto, res);
+    return this.authService.login(dto, res, req);
   }
 
   @Post('refresh')
@@ -80,7 +82,7 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const refreshToken = req.cookies?.['refresh_token'] as string;
-    return this.authService.refreshTokens(refreshToken, res);
+    return this.authService.refreshTokens(refreshToken, res, req);
   }
 
   @Post('logout')

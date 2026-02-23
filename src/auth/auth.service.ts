@@ -28,10 +28,31 @@ export class AuthService {
     @Inject(REDIS_CLIENT) private redis: Redis,
   ) {}
 
+  private getCookieOptions(req: Request): {
+    sameSite: 'none' | 'strict';
+    secure: boolean;
+  } {
+    const env = process.env.NODE_ENV;
+    const allowedOrigins =
+      env === 'production'
+        ? new Set(['https://rollingstory-web-prod.vercel.app'])
+        : new Set([
+            'http://localhost:3000',
+            'https://rollingstory-web-dev.vercel.app',
+          ]);
+
+    const origin = req.headers['origin'] as string | undefined;
+    if (origin && allowedOrigins.has(origin)) {
+      return { sameSite: 'none', secure: origin.startsWith('https://') };
+    }
+    return { sameSite: 'strict', secure: true };
+  }
+
   private async issueTokens(
     userId: string,
     email: string,
     res: Response,
+    req: Request,
   ): Promise<void> {
     const jti = crypto.randomUUID();
     const accessToken = this.jwtService.sign(
@@ -54,26 +75,26 @@ export class AuthService {
       },
     });
 
-    const isProduction = process.env.NODE_ENV === 'production';
+    const { sameSite, secure } = this.getCookieOptions(req);
 
     res.cookie('access_token', accessToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
+      secure,
+      sameSite,
       maxAge: 15 * 60 * 1000,
       path: '/',
     });
 
     res.cookie('refresh_token', rawRefreshToken, {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: 'strict',
+      secure,
+      sameSite,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
   }
 
-  async register(dto: RegisterDto, res: Response) {
+  async register(dto: RegisterDto, res: Response, req: Request) {
     // Check if email exists
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
@@ -115,7 +136,7 @@ export class AuthService {
     // email delivery fails; errors are logged inside EmailService)
     void this.emailService.sendVerificationEmail(user.email, verificationToken);
 
-    await this.issueTokens(user.id, user.email, res);
+    await this.issueTokens(user.id, user.email, res, req);
 
     return {
       user: {
@@ -127,7 +148,7 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto, res: Response) {
+  async login(dto: LoginDto, res: Response, req: Request) {
     // Find user by email or username
     const user = await this.prisma.user.findFirst({
       where: {
@@ -145,7 +166,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    await this.issueTokens(user.id, user.email, res);
+    await this.issueTokens(user.id, user.email, res, req);
 
     return {
       user: {
@@ -157,7 +178,7 @@ export class AuthService {
     };
   }
 
-  async refreshTokens(refreshToken: string, res: Response) {
+  async refreshTokens(refreshToken: string, res: Response, req: Request) {
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
     }
@@ -197,7 +218,7 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
-    await this.issueTokens(user.id, user.email, res);
+    await this.issueTokens(user.id, user.email, res, req);
 
     return { message: 'Tokens refreshed' };
   }
