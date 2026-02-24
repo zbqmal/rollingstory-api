@@ -32,7 +32,7 @@ export class AuthService {
     sameSite: 'none' | 'strict' | 'lax';
     secure: boolean;
   } {
-    const origin = req.headers['origin'] as string | undefined;
+    const origin = req.headers['origin'];
 
     if (origin && origin.startsWith('http://localhost')) {
       return { sameSite: 'lax', secure: false };
@@ -233,13 +233,27 @@ export class AuthService {
     // Denylist the access token jti in Redis if present
     if (accessToken) {
       try {
-        const decoded = this.jwtService.decode(accessToken) as {
-          jti?: string;
-          exp?: number;
-        } | null;
-        if (decoded?.jti && decoded?.exp) {
-          const ttl = Math.max(decoded.exp - Math.floor(Date.now() / 1000), 1);
-          await this.redis.set(`denylist:${decoded.jti}`, '1', 'EX', ttl);
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        const decoded = this.jwtService.decode(accessToken);
+        const jti =
+          typeof decoded === 'object' &&
+          decoded !== null &&
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          typeof decoded['jti'] === 'string'
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              decoded['jti']
+            : undefined;
+        const exp =
+          typeof decoded === 'object' &&
+          decoded !== null &&
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+          typeof decoded['exp'] === 'number'
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              decoded['exp']
+            : undefined;
+        if (jti && exp) {
+          const ttl = Math.max(exp - Math.floor(Date.now() / 1000), 1);
+          await this.redis.set(`denylist:${jti}`, '1', 'EX', ttl);
         }
       } catch (err) {
         this.logger.warn(
