@@ -32,27 +32,28 @@ export class AuthService {
     sameSite: 'none' | 'strict' | 'lax';
     secure: boolean;
   } {
-    const origin = req.headers['origin'] as string | undefined;
+    return { sameSite: 'lax', secure: false };
+    // const origin = req.headers['origin'] as string | undefined;
 
     // 1. Local Development
     // Localhost is considered "same-site", so we use Lax and don't need Secure=true
-    if (origin && origin.startsWith('http://localhost')) {
-      return { sameSite: 'lax', secure: false };
-    }
+    // if (origin && origin.startsWith('http://localhost')) {
+    //   return { sameSite: 'lax', secure: false };
+    // }
 
-    // 2. Deployed Environments (Dev & Prod)
-    const allowedOrigins = new Set([
-      'https://rollingstory-web-prod.vercel.app',
-      'https://rollingstory-web-dev.vercel.app',
-    ]);
+    // // 2. Deployed Environments (Dev & Prod)
+    // const allowedOrigins = new Set([
+    //   'https://rollingstory-web-prod.vercel.app',
+    //   'https://rollingstory-web-dev.vercel.app',
+    // ]);
 
-    // Cross-site requests require SameSite=None and Secure=true
-    if (origin && allowedOrigins.has(origin)) {
-      return { sameSite: 'none', secure: true };
-    }
+    // // Cross-site requests require SameSite=None and Secure=true
+    // if (origin && allowedOrigins.has(origin)) {
+    //   return { sameSite: 'none', secure: true };
+    // }
 
-    // 3. Fallback for unrecognized origins
-    return { sameSite: 'strict', secure: true };
+    // // 3. Fallback for unrecognized origins
+    // return { sameSite: 'strict', secure: true };
   }
 
   private async issueTokens(
