@@ -32,7 +32,7 @@ export class AuthService {
     sameSite: 'none' | 'strict' | 'lax';
     secure: boolean;
   } {
-    return { sameSite: 'lax', secure: false };
+    return { sameSite: 'lax', secure: true };
     // const origin = req.headers['origin'] as string | undefined;
 
     // 1. Local Development
