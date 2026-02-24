@@ -156,9 +156,9 @@ describe('AuthService', () => {
         id: 'existing-user',
       });
 
-      await expect(service.register(registerDto, mockRes, mockReq)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.register(registerDto, mockRes, mockReq),
+      ).rejects.toThrow(ConflictException);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { email: registerDto.email },
       });
@@ -169,9 +169,9 @@ describe('AuthService', () => {
         .mockResolvedValueOnce(null)
         .mockResolvedValueOnce({ id: 'existing-user' });
 
-      await expect(service.register(registerDto, mockRes, mockReq)).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.register(registerDto, mockRes, mockReq),
+      ).rejects.toThrow(ConflictException);
       expect(mockPrismaService.user.findUnique).toHaveBeenCalledWith({
         where: { username: registerDto.username },
       });
@@ -321,9 +321,9 @@ describe('AuthService', () => {
       ]);
       (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
-      await expect(service.refreshTokens(rawToken, mockRes, mockReq)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        service.refreshTokens(rawToken, mockRes, mockReq),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 
@@ -356,7 +356,7 @@ describe('AuthService', () => {
       process.env.NODE_ENV = originalEnv;
     });
 
-    it('localhost:3000 in development → sameSite: none, secure: false', async () => {
+    it('localhost:3000 in development → sameSite: lax, secure: false', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
       const req = { headers: { origin: 'http://localhost:3000' } } as any;
@@ -366,7 +366,7 @@ describe('AuthService', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         expect.any(String),
-        expect.objectContaining({ sameSite: 'none', secure: false }),
+        expect.objectContaining({ sameSite: 'lax', secure: false }),
       );
     });
 
@@ -402,7 +402,7 @@ describe('AuthService', () => {
       );
     });
 
-    it('localhost:3000 in production → sameSite: strict, secure: true', async () => {
+    it('localhost:3000 in production → sameSite: lax, secure: false', async () => {
       process.env.NODE_ENV = 'production';
       setupRegisterMocks();
       const req = { headers: { origin: 'http://localhost:3000' } } as any;
@@ -412,11 +412,11 @@ describe('AuthService', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
+        expect.objectContaining({ sameSite: 'lax', secure: false }),
       );
     });
 
-    it('web-dev.vercel.app in production → sameSite: strict, secure: true', async () => {
+    it('web-dev.vercel.app in production → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'production';
       setupRegisterMocks();
       const req = {
@@ -428,11 +428,11 @@ describe('AuthService', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
+        expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
 
-    it('web-prod.vercel.app in development → sameSite: strict, secure: true', async () => {
+    it('web-prod.vercel.app in development → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
       const req = {
@@ -444,7 +444,7 @@ describe('AuthService', () => {
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         expect.any(String),
-        expect.objectContaining({ sameSite: 'strict', secure: true }),
+        expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
 
