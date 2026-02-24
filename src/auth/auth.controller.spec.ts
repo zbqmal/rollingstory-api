@@ -94,13 +94,17 @@ describe('AuthController', () => {
 
       const result = await controller.login(loginDto, mockReq, mockRes);
 
-      expect(mockAuthService.login).toHaveBeenCalledWith(loginDto, mockRes, mockReq);
+      expect(mockAuthService.login).toHaveBeenCalledWith(
+        loginDto,
+        mockRes,
+        mockReq,
+      );
       expect(result).toEqual(serviceResult);
     });
   });
 
   describe('refresh', () => {
-    it('should call refreshTokens with cookie value', async () => {
+    it('should call refreshTokens with cookie value and request', async () => {
       const rawToken = 'user-id.abcdef1234567890';
       const mockReq = {
         cookies: { refresh_token: rawToken },
