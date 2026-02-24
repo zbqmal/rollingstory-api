@@ -29,22 +29,29 @@ export class AuthService {
   ) {}
 
   private getCookieOptions(req: Request): {
-    sameSite: 'none' | 'strict';
+    sameSite: 'none' | 'strict' | 'lax';
     secure: boolean;
   } {
-    const env = process.env.NODE_ENV;
-    const allowedOrigins =
-      env === 'production'
-        ? new Set(['https://rollingstory-web-prod.vercel.app'])
-        : new Set([
-            'http://localhost:3000',
-            'https://rollingstory-web-dev.vercel.app',
-          ]);
-
     const origin = req.headers['origin'] as string | undefined;
-    if (origin && allowedOrigins.has(origin)) {
-      return { sameSite: 'none', secure: origin.startsWith('https://') };
+
+    // 1. Local Development
+    // Localhost is considered "same-site", so we use Lax and don't need Secure=true
+    if (origin && origin.startsWith('http://localhost')) {
+      return { sameSite: 'lax', secure: false };
     }
+
+    // 2. Deployed Environments (Dev & Prod)
+    const allowedOrigins = new Set([
+      'https://rollingstory-web-prod.vercel.app',
+      'https://rollingstory-web-dev.vercel.app',
+    ]);
+
+    // Cross-site requests require SameSite=None and Secure=true
+    if (origin && allowedOrigins.has(origin)) {
+      return { sameSite: 'none', secure: true };
+    }
+
+    // 3. Fallback for unrecognized origins
     return { sameSite: 'strict', secure: true };
   }
 
@@ -235,10 +242,7 @@ export class AuthService {
           exp?: number;
         } | null;
         if (decoded?.jti && decoded?.exp) {
-          const ttl = Math.max(
-            decoded.exp - Math.floor(Date.now() / 1000),
-            1,
-          );
+          const ttl = Math.max(decoded.exp - Math.floor(Date.now() / 1000), 1);
           await this.redis.set(`denylist:${decoded.jti}`, '1', 'EX', ttl);
         }
       } catch (err) {
