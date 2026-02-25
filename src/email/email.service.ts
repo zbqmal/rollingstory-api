@@ -7,16 +7,22 @@ export class EmailService {
   private readonly resend: Resend;
   private readonly from: string;
   private readonly frontendUrl: string;
+  private readonly emailDisabled: boolean;
   private readonly logger = new Logger(EmailService.name);
 
   constructor(private config: ConfigService) {
     const apiKey = this.config.get<string>('RESEND_API_KEY') ?? '';
     this.from = this.config.get<string>('EMAIL_FROM') ?? '';
     this.frontendUrl = this.config.get<string>('FRONTEND_URL') ?? '';
+    this.emailDisabled = this.config.get<string>('NODE_ENV') === 'test';
     this.resend = new Resend(apiKey);
   }
 
   async sendVerificationEmail(to: string, token: string): Promise<void> {
+    if (this.emailDisabled) {
+      return;
+    }
+
     const link = `${this.frontendUrl}/verify-email?token=${token}`;
     const { error } = await this.resend.emails.send({
       from: this.from,
@@ -34,6 +40,10 @@ export class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, token: string): Promise<void> {
+    if (this.emailDisabled) {
+      return;
+    }
+
     const link = `${this.frontendUrl}/reset-password?token=${token}`;
     const { error } = await this.resend.emails.send({
       from: this.from,
