@@ -70,6 +70,9 @@ export class AuthService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
+    // Purge all existing refresh tokens for this user before issuing a new one
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+
     await this.prisma.refreshToken.create({
       data: {
         token: hashedRefreshToken,
@@ -271,17 +274,7 @@ export class AuthService {
     const dotIndex = refreshToken.indexOf('.');
     if (dotIndex !== -1) {
       const userId = refreshToken.substring(0, dotIndex);
-      const tokens = await this.prisma.refreshToken.findMany({
-        where: { userId },
-      });
-
-      for (const t of tokens) {
-        const isMatch = await bcrypt.compare(refreshToken, t.token);
-        if (isMatch) {
-          await this.prisma.refreshToken.delete({ where: { id: t.id } });
-          break;
-        }
-      }
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
     }
 
     res.clearCookie('access_token', { path: '/' });
