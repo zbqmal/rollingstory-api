@@ -10,11 +10,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../email/email.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import * as bcrypt from 'bcrypt';
+import type { Request, Response } from 'express';
 
 jest.mock('bcrypt');
 
 describe('AuthService', () => {
   let service: AuthService;
+
+  type CookieRequest = Request & { cookies?: Record<string, string> };
+  type MockResponse = Response & {
+    cookie: jest.Mock;
+    clearCookie: jest.Mock;
+  };
+
+  const buildRequest = (options?: {
+    headers?: Record<string, string>;
+    cookies?: Record<string, string>;
+  }): CookieRequest =>
+    ({
+      headers: options?.headers ?? {},
+      cookies: options?.cookies,
+    }) as CookieRequest;
+
+  const expectAnyString = () => expect.any(String) as unknown as string;
+  const expectAnyDate = () => expect.any(Date) as unknown as Date;
+  const expectAnyNumber = () => expect.any(Number) as unknown as number;
+  const expectObjectContaining = <T extends object>(value: T): T =>
+    expect.objectContaining(value) as unknown as T;
 
   const mockPrismaService = {
     user: {
@@ -22,12 +44,16 @@ describe('AuthService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(),
       findMany: jest.fn(),
       delete: jest.fn(),
       deleteMany: jest.fn(),
+    },
+    work: {
+      count: jest.fn(),
     },
   };
 
@@ -46,14 +72,12 @@ describe('AuthService', () => {
     get: jest.fn().mockResolvedValue(null),
   };
 
-  const mockRes = {
+  const mockRes: MockResponse = {
     cookie: jest.fn(),
     clearCookie: jest.fn(),
-  } as any;
+  } as unknown as MockResponse;
 
-  const mockReq = {
-    headers: {},
-  } as any;
+  const mockReq = buildRequest();
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -117,19 +141,19 @@ describe('AuthService', () => {
       expect(bcrypt.hash).toHaveBeenCalledWith(registerDto.password, 12);
       expect(mockPrismaService.user.create).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
+          data: expectObjectContaining({
             email: registerDto.email,
             username: registerDto.username,
             password: hashedPassword,
-            emailVerificationToken: expect.any(String),
-            emailVerificationTokenExpiresAt: expect.any(Date),
+            emailVerificationToken: expectAnyString(),
+            emailVerificationTokenExpiresAt: expectAnyDate(),
           }),
         }),
       );
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
       expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
         mockUser.email,
-        expect.any(String),
+        expectAnyString(),
       );
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
@@ -138,7 +162,7 @@ describe('AuthService', () => {
       );
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'refresh_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ httpOnly: true }),
       );
       expect(result).toEqual({
@@ -286,7 +310,7 @@ describe('AuthService', () => {
       const result = await service.refreshTokens(rawToken, mockRes, mockReq);
 
       expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
-        where: { userId: mockUser.id, expiresAt: { gt: expect.any(Date) } },
+        where: { userId: mockUser.id, expiresAt: { gt: expectAnyDate() } },
       });
       expect(bcrypt.compare).toHaveBeenCalledWith(
         rawToken,
@@ -359,13 +383,15 @@ describe('AuthService', () => {
     it('localhost:3000 in development → sameSite: lax, secure: false', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
-      const req = { headers: { origin: 'http://localhost:3000' } } as any;
+      const req = buildRequest({
+        headers: { origin: 'http://localhost:3000' },
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'lax', secure: false }),
       );
     });
@@ -373,15 +399,15 @@ describe('AuthService', () => {
     it('web-dev.vercel.app in development → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
-      const req = {
+      const req = buildRequest({
         headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
-      } as any;
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
@@ -389,15 +415,15 @@ describe('AuthService', () => {
     it('web-prod.vercel.app in production → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'production';
       setupRegisterMocks();
-      const req = {
+      const req = buildRequest({
         headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
-      } as any;
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
@@ -405,13 +431,15 @@ describe('AuthService', () => {
     it('localhost:3000 in production → sameSite: lax, secure: false', async () => {
       process.env.NODE_ENV = 'production';
       setupRegisterMocks();
-      const req = { headers: { origin: 'http://localhost:3000' } } as any;
+      const req = buildRequest({
+        headers: { origin: 'http://localhost:3000' },
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'lax', secure: false }),
       );
     });
@@ -419,15 +447,15 @@ describe('AuthService', () => {
     it('web-dev.vercel.app in production → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'production';
       setupRegisterMocks();
-      const req = {
+      const req = buildRequest({
         headers: { origin: 'https://rollingstory-web-dev.vercel.app' },
-      } as any;
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
@@ -435,15 +463,15 @@ describe('AuthService', () => {
     it('web-prod.vercel.app in development → sameSite: none, secure: true', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
-      const req = {
+      const req = buildRequest({
         headers: { origin: 'https://rollingstory-web-prod.vercel.app' },
-      } as any;
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'none', secure: true }),
       );
     });
@@ -451,13 +479,13 @@ describe('AuthService', () => {
     it('no origin header → sameSite: strict, secure: true', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
-      const req = { headers: {} } as any;
+      const req = buildRequest();
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'strict', secure: true }),
       );
     });
@@ -465,15 +493,15 @@ describe('AuthService', () => {
     it('unknown origin → sameSite: strict, secure: true', async () => {
       process.env.NODE_ENV = 'development';
       setupRegisterMocks();
-      const req = {
+      const req = buildRequest({
         headers: { origin: 'https://unknown-site.example.com' },
-      } as any;
+      });
 
       await service.register(registerDto, mockRes, req);
 
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
-        expect.any(String),
+        expectAnyString(),
         expect.objectContaining({ sameSite: 'strict', secure: true }),
       );
     });
@@ -491,7 +519,7 @@ describe('AuthService', () => {
     const rawToken = `user-id.abcdef1234567890`;
 
     it('should revoke the matched refresh token and clear cookies', async () => {
-      const req = { cookies: { refresh_token: rawToken } } as any;
+      const req = buildRequest({ cookies: { refresh_token: rawToken } });
 
       mockPrismaService.refreshToken.findMany.mockResolvedValue([
         mockStoredToken,
@@ -517,7 +545,7 @@ describe('AuthService', () => {
     });
 
     it('should clear cookies and return without DB access when no cookie', async () => {
-      const req = { cookies: {} } as any;
+      const req = buildRequest({ cookies: {} });
 
       const result = await service.logout(req, mockRes);
 
@@ -535,12 +563,12 @@ describe('AuthService', () => {
       const now = Math.floor(Date.now() / 1000);
       const exp = now + 600; // 10 minutes remaining
       const jti = 'test-jti-uuid';
-      const req = {
+      const req = buildRequest({
         cookies: {
           access_token: 'valid.access.token',
           refresh_token: rawToken,
         },
-      } as any;
+      });
 
       mockJwtService.decode.mockReturnValue({ jti, exp });
       mockPrismaService.refreshToken.findMany.mockResolvedValue([
@@ -556,15 +584,21 @@ describe('AuthService', () => {
         `denylist:${jti}`,
         '1',
         'EX',
-        expect.any(Number),
+        expectAnyNumber(),
       );
-      const ttlArg = mockRedis.set.mock.calls[0][3] as number;
+      const setCall = mockRedis.set.mock.calls[0] as [
+        string,
+        string,
+        string,
+        number,
+      ];
+      const ttlArg = setCall[3];
       expect(ttlArg).toBeGreaterThanOrEqual(1);
       expect(ttlArg).toBeLessThanOrEqual(600);
     });
 
     it('should skip Redis denylist if access_token cookie is absent', async () => {
-      const req = { cookies: { refresh_token: rawToken } } as any;
+      const req = buildRequest({ cookies: { refresh_token: rawToken } });
 
       mockPrismaService.refreshToken.findMany.mockResolvedValue([
         mockStoredToken,
@@ -580,12 +614,12 @@ describe('AuthService', () => {
     it('should still clear cookies and revoke refresh token when Redis fails', async () => {
       const now = Math.floor(Date.now() / 1000);
       const exp = now + 600;
-      const req = {
+      const req = buildRequest({
         cookies: {
           access_token: 'valid.access.token',
           refresh_token: rawToken,
         },
-      } as any;
+      });
 
       mockJwtService.decode.mockReturnValue({ jti: 'some-jti', exp });
       mockRedis.set.mockRejectedValueOnce(new Error('Redis unreachable'));
@@ -636,6 +670,53 @@ describe('AuthService', () => {
       await expect(service.getCurrentUser('non-existent-id')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('deleteAccount', () => {
+    beforeEach(() => {
+      mockPrismaService.work = {
+        count: jest.fn(),
+      };
+    });
+
+    it('should delete refresh tokens and user, clear cookies, and return success message', async () => {
+      mockPrismaService.work.count.mockResolvedValue(0);
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.user.delete.mockResolvedValue({});
+
+      const result = await service.deleteAccount('user-id', mockRes);
+
+      expect(mockPrismaService.work.count).toHaveBeenCalledWith({
+        where: { authorId: 'user-id' },
+      });
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-id' },
+      });
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
+        path: '/',
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
+      expect(result).toEqual({ message: 'Account deleted successfully' });
+    });
+
+    it('should throw ConflictException if user has authored works', async () => {
+      mockPrismaService.work.count.mockResolvedValue(3);
+
+      await expect(service.deleteAccount('user-id', mockRes)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockPrismaService.work.count).toHaveBeenCalledWith({
+        where: { authorId: 'user-id' },
+      });
+      expect(mockPrismaService.refreshToken.deleteMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
+      expect(mockRes.clearCookie).not.toHaveBeenCalled();
     });
   });
 
@@ -704,15 +785,15 @@ describe('AuthService', () => {
       expect(mockPrismaService.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: mockUser.id },
-          data: expect.objectContaining({
-            emailVerificationToken: expect.any(String),
-            emailVerificationTokenExpiresAt: expect.any(Date),
+          data: expectObjectContaining({
+            emailVerificationToken: expectAnyString(),
+            emailVerificationTokenExpiresAt: expectAnyDate(),
           }),
         }),
       );
       expect(mockEmailService.sendVerificationEmail).toHaveBeenCalledWith(
         mockUser.email,
-        expect.any(String),
+        expectAnyString(),
       );
       expect(result.message).toBeDefined();
     });
@@ -758,15 +839,15 @@ describe('AuthService', () => {
       expect(mockPrismaService.user.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: mockUser.id },
-          data: expect.objectContaining({
-            passwordResetToken: expect.any(String),
-            passwordResetTokenExpiresAt: expect.any(Date),
+          data: expectObjectContaining({
+            passwordResetToken: expectAnyString(),
+            passwordResetTokenExpiresAt: expectAnyDate(),
           }),
         }),
       );
       expect(mockEmailService.sendPasswordResetEmail).toHaveBeenCalledWith(
         mockUser.email,
-        expect.any(String),
+        expectAnyString(),
       );
       expect(result.message).toBeDefined();
     });

@@ -308,6 +308,27 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(userId: string, res: Response) {
+    // Check if user has any authored works
+    const authoredWorksCount = await this.prisma.work.count({
+      where: { authorId: userId },
+    });
+
+    if (authoredWorksCount > 0) {
+      throw new ConflictException(
+        `Cannot delete account: You have ${authoredWorksCount} authored work(s). Please delete your works before deleting your account.`,
+      );
+    }
+
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+
+    return { message: 'Account deleted successfully' };
+  }
+
   async verifyEmail(token: string) {
     const user = await this.prisma.user.findUnique({
       where: { emailVerificationToken: token },
