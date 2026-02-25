@@ -329,7 +329,7 @@ describe('Works (e2e)', () => {
       return request(app.getHttpServer())
         .patch('/works/00000000-0000-0000-0000-000000000000')
         .set('Cookie', auth.allCookies)
-        .send({ title: 'X' })
+        .send({ title: 'Valid Title' })
         .expect(404);
     });
   });
