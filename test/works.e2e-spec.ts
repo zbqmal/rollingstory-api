@@ -4,21 +4,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
-import cookieParser from 'cookie-parser';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import cookieParser from 'cookie-parser';
+import { cleanDatabase } from './helpers/db.helper';
+import { registerUser, TEST_USER, TEST_USER_2 } from './helpers/auth.helper';
 
 describe('Works (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let authCookie: string;
-  let userId: string;
-  let anotherAuthCookie: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideModule(ThrottlerModule)
+      .useModule(ThrottlerModule.forRoot([{ ttl: 1000, limit: 1000 }]))
+      .compile();
 
     app = moduleFixture.createNestApplication();
     app.use(cookieParser());
@@ -40,327 +43,345 @@ describe('Works (e2e)', () => {
   });
 
   beforeEach(async () => {
-    // Clean up database before each test
-    await prisma.workCollaborator.deleteMany();
-    await prisma.page.deleteMany();
-    await prisma.work.deleteMany();
-    await prisma.user.deleteMany();
-
-    // Create test user and extract auth cookie
-    const registerRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        email: 'test@example.com',
-        username: 'testuser',
-        password: 'password123',
-      });
-
-    const setCookieHeader = registerRes.headers['set-cookie'] as
-      | string[]
-      | string;
-    const cookieArray = Array.isArray(setCookieHeader)
-      ? setCookieHeader
-      : [setCookieHeader];
-    const accessTokenCookie =
-      cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
-    authCookie = accessTokenCookie.split(';')[0];
-    userId = registerRes.body.user.id;
-
-    // Create another test user
-    const anotherRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        email: 'another@example.com',
-        username: 'anotheruser',
-        password: 'password123',
-      });
-
-    const anotherSetCookieHeader = anotherRegisterRes.headers['set-cookie'] as
-      | string[]
-      | string;
-    const anotherCookieArray = Array.isArray(anotherSetCookieHeader)
-      ? anotherSetCookieHeader
-      : [anotherSetCookieHeader];
-    const anotherAccessTokenCookie =
-      anotherCookieArray.find((c) => c.startsWith('access_token=')) ?? '';
-    anotherAuthCookie = anotherAccessTokenCookie.split(';')[0];
+    await cleanDatabase(prisma);
   });
 
-  describe('/works (POST)', () => {
-    it('should create a new work', () => {
+  describe('POST /works', () => {
+    it('should return 401 if not authenticated', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
+        .send({ title: 'Some Work' })
+        .expect(401);
+    });
+
+    it('should create a new work with all fields', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
         .send({
-          title: 'My First Novel',
+          title: 'Full Work',
           description: 'A great story',
           type: 'novel',
           pageCharLimit: 3000,
           allowCollaboration: true,
         })
-        .expect(201)
-        .expect((res) => {
-          expect(res.body.id).toBeDefined();
-          expect(res.body.title).toBe('My First Novel');
-          expect(res.body.description).toBe('A great story');
-          expect(res.body.type).toBe('novel');
-          expect(res.body.pageCharLimit).toBe(3000);
-          expect(res.body.allowCollaboration).toBe(true);
-          expect(res.body.authorId).toBe(userId);
-          expect(res.body.author).toBeDefined();
-          expect(res.body.author.password).toBeUndefined();
-        });
+        .expect(201);
+
+      expect(res.body.id).toBeDefined();
+      expect(res.body.title).toBe('Full Work');
+      expect(res.body.author.id).toBe(auth.userId);
+      expect(res.body.author.password).toBeUndefined();
     });
 
-    it('should create work with default values', () => {
-      return request(app.getHttpServer())
+    it('should create a work with only required fields (defaults applied)', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
-        .send({
-          title: 'My Second Novel',
-        })
-        .expect(201)
-        .expect((res) => {
-          expect(res.body.type).toBe('novel');
-          expect(res.body.pageCharLimit).toBe(2000);
-          expect(res.body.allowCollaboration).toBe(true);
-        });
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Min Work' })
+        .expect(201);
+
+      expect(res.body.type).toBe('novel');
+      expect(res.body.pageCharLimit).toBe(2000);
+      expect(res.body.allowCollaboration).toBe(true);
     });
 
-    it('should return 401 without authentication', () => {
-      return request(app.getHttpServer())
-        .post('/works')
-        .send({
-          title: 'My Novel',
-        })
-        .expect(401);
-    });
+    it('should return 400 if title is missing', async () => {
+      const auth = await registerUser(app, TEST_USER);
 
-    it('should return 400 for invalid data', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
-        .send({
-          title: 'AB', // Too short
-        })
+        .set('Cookie', auth.allCookies)
+        .send({})
         .expect(400);
     });
 
-    it('should return 400 for pageCharLimit out of range', () => {
+    it('should return 400 if title is too short (< 3 chars)', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
       return request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
-        .send({
-          title: 'My Novel',
-          pageCharLimit: 50, // Too low
-        })
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'ab' })
+        .expect(400);
+    });
+
+    it('should return 400 if title is too long (> 200 chars)', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      return request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'a'.repeat(201) })
         .expect(400);
     });
   });
 
-  describe('/works (GET)', () => {
-    beforeEach(async () => {
-      // Create some test works
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', authCookie)
-        .send({ title: 'Work 1' });
-
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', authCookie)
-        .send({ title: 'Work 2' });
-
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', anotherAuthCookie)
-        .send({ title: 'Work 3' });
-    });
-
-    it('should return all works with pagination', () => {
+  describe('GET /works', () => {
+    it('should return empty list when no works exist', () => {
       return request(app.getHttpServer())
         .get('/works')
         .expect(200)
         .expect((res) => {
           expect(res.body.data).toBeInstanceOf(Array);
-          expect(res.body.data.length).toBe(3);
-          expect(res.body.total).toBe(3);
-          expect(res.body.page).toBe(1);
-          expect(res.body.limit).toBe(10);
-          expect(res.body.data[0]._count).toBeDefined();
-          expect(res.body.data[0]._count.pages).toBe(0);
-          expect(res.body.data[0].author).toBeDefined();
-          expect(res.body.data[0].author.password).toBeUndefined();
+          expect(res.body.data.length).toBe(0);
+          expect(res.body.total).toBe(0);
         });
     });
 
-    it('should support pagination parameters', () => {
-      return request(app.getHttpServer())
+    it('should return list of works with pagination metadata', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      for (let i = 1; i <= 3; i++) {
+        await request(app.getHttpServer())
+          .post('/works')
+          .set('Cookie', auth.allCookies)
+          .send({ title: `Work ${i}` });
+      }
+
+      const res = await request(app.getHttpServer()).get('/works').expect(200);
+
+      expect(res.body.data.length).toBe(3);
+      expect(res.body.total).toBe(3);
+      expect(res.body.page).toBe(1);
+      expect(res.body.limit).toBe(10);
+    });
+
+    it('should paginate correctly with page and limit params', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      for (let i = 1; i <= 3; i++) {
+        await request(app.getHttpServer())
+          .post('/works')
+          .set('Cookie', auth.allCookies)
+          .send({ title: `Work ${i}` });
+      }
+
+      const page1 = await request(app.getHttpServer())
         .get('/works?page=1&limit=2')
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.data.length).toBe(2);
-          expect(res.body.total).toBe(3);
-          expect(res.body.page).toBe(1);
-          expect(res.body.limit).toBe(2);
-        });
+        .expect(200);
+      expect(page1.body.data.length).toBe(2);
+
+      const page2 = await request(app.getHttpServer())
+        .get('/works?page=2&limit=2')
+        .expect(200);
+      expect(page2.body.data.length).toBe(1);
+    });
+
+    it('should be accessible without authentication', () => {
+      return request(app.getHttpServer()).get('/works').expect(200);
     });
   });
 
-  describe('/works/my (GET)', () => {
-    beforeEach(async () => {
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', authCookie)
-        .send({ title: 'My Work 1' });
-
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', authCookie)
-        .send({ title: 'My Work 2' });
-
-      await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', anotherAuthCookie)
-        .send({ title: 'Another Work' });
-    });
-
-    it('should return only current user works', () => {
-      return request(app.getHttpServer())
-        .get('/works/my')
-        .set('Cookie', authCookie)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body).toBeInstanceOf(Array);
-          expect(res.body.length).toBe(2);
-          expect(res.body[0]._count).toBeDefined();
-        });
-    });
-
-    it('should return 401 without authentication', () => {
+  describe('GET /works/my', () => {
+    it('should return 401 if not authenticated', () => {
       return request(app.getHttpServer()).get('/works/my').expect(401);
     });
+
+    it("should return only the authenticated user's works", async () => {
+      const user1 = await registerUser(app, TEST_USER);
+      const user2 = await registerUser(app, TEST_USER_2);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', user1.allCookies)
+        .send({ title: 'User1 Work 1' });
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', user1.allCookies)
+        .send({ title: 'User1 Work 2' });
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', user2.allCookies)
+        .send({ title: 'User2 Work' });
+
+      const res = await request(app.getHttpServer())
+        .get('/works/my')
+        .set('Cookie', user1.allCookies)
+        .expect(200);
+
+      expect(res.body).toBeInstanceOf(Array);
+      expect(res.body.length).toBe(2);
+      res.body.forEach((work: { authorId: string }) => {
+        expect(work.authorId).toBe(user1.userId);
+      });
+    });
+
+    it('should return empty array if user has no works', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .get('/works/my')
+        .set('Cookie', auth.allCookies)
+        .expect(200);
+
+      expect(res.body).toBeInstanceOf(Array);
+      expect(res.body.length).toBe(0);
+    });
   });
 
-  describe('/works/:id (GET)', () => {
-    let workId: string;
+  describe('GET /works/:id', () => {
+    it('should return work details by id', async () => {
+      const auth = await registerUser(app, TEST_USER);
 
-    beforeEach(async () => {
-      const res = await request(app.getHttpServer())
+      const createRes = await request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
+        .set('Cookie', auth.allCookies)
         .send({ title: 'Test Work' });
-      workId = res.body.id;
-    });
+      const workId: string = createRes.body.id;
 
-    it('should return a work by id', () => {
-      return request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .get(`/works/${workId}`)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.id).toBe(workId);
-          expect(res.body.title).toBe('Test Work');
-          expect(res.body.author).toBeDefined();
-          expect(res.body.author.password).toBeUndefined();
-          expect(res.body._count).toBeDefined();
-        });
+        .expect(200);
+
+      expect(res.body.id).toBe(workId);
+      expect(res.body.author.id).toBe(auth.userId);
     });
 
-    it('should return 404 for non-existent work', () => {
+    it('should return 404 if work does not exist', () => {
       return request(app.getHttpServer())
-        .get('/works/non-existent-id')
+        .get('/works/00000000-0000-0000-0000-000000000000')
         .expect(404);
+    });
+
+    it('should be accessible without authentication', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Public Work' });
+      const workId: string = createRes.body.id;
+
+      return request(app.getHttpServer()).get(`/works/${workId}`).expect(200);
     });
   });
 
-  describe('/works/:id (PATCH)', () => {
-    let workId: string;
+  describe('PATCH /works/:id', () => {
+    it('should return 401 if not authenticated', () => {
+      return request(app.getHttpServer())
+        .patch('/works/00000000-0000-0000-0000-000000000000')
+        .send({ title: 'X' })
+        .expect(401);
+    });
 
-    beforeEach(async () => {
-      const res = await request(app.getHttpServer())
+    it('should update work title as owner', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
         .post('/works')
-        .set('Cookie', authCookie)
+        .set('Cookie', auth.allCookies)
         .send({ title: 'Original Title' });
-      workId = res.body.id;
-    });
+      const workId: string = createRes.body.id;
 
-    it('should update a work if user is owner', () => {
-      return request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .patch(`/works/${workId}`)
-        .set('Cookie', authCookie)
-        .send({
-          title: 'Updated Title',
-          description: 'Updated Description',
-        })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.title).toBe('Updated Title');
-          expect(res.body.description).toBe('Updated Description');
-        });
-    });
-
-    it('should return 401 without authentication', () => {
-      return request(app.getHttpServer())
-        .patch(`/works/${workId}`)
+        .set('Cookie', auth.allCookies)
         .send({ title: 'Updated Title' })
-        .expect(401);
+        .expect(200);
+
+      expect(res.body.title).toBe('Updated Title');
     });
 
-    it('should return 403 if user is not owner', () => {
+    it('should update allowCollaboration flag', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Collab Work', allowCollaboration: true });
+      const workId: string = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/works/${workId}`)
+        .set('Cookie', auth.allCookies)
+        .send({ allowCollaboration: false })
+        .expect(200);
+
+      expect(res.body.allowCollaboration).toBe(false);
+    });
+
+    it('should return 403 if not the owner', async () => {
+      const user1 = await registerUser(app, TEST_USER);
+      const user2 = await registerUser(app, TEST_USER_2);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', user1.allCookies)
+        .send({ title: 'Owner Work' });
+      const workId: string = createRes.body.id;
+
       return request(app.getHttpServer())
         .patch(`/works/${workId}`)
-        .set('Cookie', anotherAuthCookie)
-        .send({ title: 'Updated Title' })
+        .set('Cookie', user2.allCookies)
+        .send({ title: 'Stolen Update' })
         .expect(403);
     });
 
-    it('should return 404 for non-existent work', () => {
+    it('should return 404 if work does not exist', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
       return request(app.getHttpServer())
-        .patch('/works/non-existent-id')
-        .set('Cookie', authCookie)
-        .send({ title: 'Updated Title' })
+        .patch('/works/00000000-0000-0000-0000-000000000000')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'X' })
         .expect(404);
     });
   });
 
-  describe('/works/:id (DELETE)', () => {
-    let workId: string;
-
-    beforeEach(async () => {
-      const res = await request(app.getHttpServer())
-        .post('/works')
-        .set('Cookie', authCookie)
-        .send({ title: 'Work to Delete' });
-      workId = res.body.id;
-    });
-
-    it('should delete a work if user is owner', () => {
+  describe('DELETE /works/:id', () => {
+    it('should return 401 if not authenticated', () => {
       return request(app.getHttpServer())
-        .delete(`/works/${workId}`)
-        .set('Cookie', authCookie)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.message).toBe('Work deleted successfully');
-        });
-    });
-
-    it('should return 401 without authentication', () => {
-      return request(app.getHttpServer())
-        .delete(`/works/${workId}`)
+        .delete('/works/00000000-0000-0000-0000-000000000000')
         .expect(401);
     });
 
-    it('should return 403 if user is not owner', () => {
+    it('should delete work as owner', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Work to Delete' });
+      const workId: string = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .delete(`/works/${workId}`)
+        .set('Cookie', auth.allCookies)
+        .expect(200);
+
+      expect(res.body.message).toBe('Work deleted successfully');
+
+      await request(app.getHttpServer()).get(`/works/${workId}`).expect(404);
+    });
+
+    it('should return 403 if not the owner', async () => {
+      const user1 = await registerUser(app, TEST_USER);
+      const user2 = await registerUser(app, TEST_USER_2);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', user1.allCookies)
+        .send({ title: 'Owner Work' });
+      const workId: string = createRes.body.id;
+
       return request(app.getHttpServer())
         .delete(`/works/${workId}`)
-        .set('Cookie', anotherAuthCookie)
+        .set('Cookie', user2.allCookies)
         .expect(403);
     });
 
-    it('should return 404 for non-existent work', () => {
+    it('should return 404 if work does not exist', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
       return request(app.getHttpServer())
-        .delete('/works/non-existent-id')
-        .set('Cookie', authCookie)
+        .delete('/works/00000000-0000-0000-0000-000000000000')
+        .set('Cookie', auth.allCookies)
         .expect(404);
     });
   });

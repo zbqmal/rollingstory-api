@@ -167,36 +167,62 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 
 ---
 
-## 4. Works E2E Test Plan (`test/works.e2e-spec.ts`)
-
-> All tests in this section are ⏳ Future Phase (Phase 4)
+## 4. Works E2E Test Plan (`test/works.e2e-spec.ts`) — ✅ Phase 3
 
 ### `POST /works`
-- ⏳ should create a work when authenticated
-- ⏳ should return 401 when not authenticated
+
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return 401 if not authenticated |
+| ✅ Added in Phase 3 | should create a new work with all fields |
+| ✅ Added in Phase 3 | should create a work with only required fields (defaults applied) |
+| ✅ Added in Phase 3 | should return 400 if title is missing |
+| ✅ Added in Phase 3 | should return 400 if title is too short (< 3 chars) |
+| ✅ Added in Phase 3 | should return 400 if title is too long (> 200 chars) |
 
 ### `GET /works`
-- ⏳ should return paginated list of works
+
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return empty list when no works exist |
+| ✅ Added in Phase 3 | should return list of works with pagination metadata |
+| ✅ Added in Phase 3 | should paginate correctly with page and limit params |
+| ✅ Added in Phase 3 | should be accessible without authentication |
 
 ### `GET /works/my`
-- ⏳ should return works owned by the authenticated user
-- ⏳ should return 401 when not authenticated
+
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return 401 if not authenticated |
+| ✅ Added in Phase 3 | should return only the authenticated user's works |
+| ✅ Added in Phase 3 | should return empty array if user has no works |
 
 ### `GET /works/:id`
-- ⏳ should return work details
-- ⏳ should return 404 for nonexistent work
+
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return work details by id |
+| ✅ Added in Phase 3 | should return 404 if work does not exist |
+| ✅ Added in Phase 3 | should be accessible without authentication |
 
 ### `PATCH /works/:id`
-- ⏳ should update work when owner
-- ⏳ should return 403 when not the owner
-- ⏳ should return 401 when not authenticated
+
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return 401 if not authenticated |
+| ✅ Added in Phase 3 | should update work title as owner |
+| ✅ Added in Phase 3 | should update allowCollaboration flag |
+| ✅ Added in Phase 3 | should return 403 if not the owner |
+| ✅ Added in Phase 3 | should return 404 if work does not exist |
 
 ### `DELETE /works/:id`
-- ⏳ should delete work when owner
-- ⏳ should return 403 when not the owner
 
-### `GET /works/:id/collaborators`
-- ⏳ should list collaborators for a work
+| Status | Test |
+|--------|------|
+| ✅ Added in Phase 3 | should return 401 if not authenticated |
+| ✅ Added in Phase 3 | should delete work as owner |
+| ✅ Added in Phase 3 | should return 403 if not the owner |
+| ✅ Added in Phase 3 | should return 404 if work does not exist |
 
 ---
 
