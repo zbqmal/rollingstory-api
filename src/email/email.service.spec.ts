@@ -2,8 +2,23 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { EmailService } from './email.service';
 
+type ResendSendPayload = {
+  from: string;
+  to: string;
+  subject: string;
+  html: string;
+};
+
+type ResendSendResult = {
+  data: { id: string } | null;
+  error: { message: string } | null;
+};
+
 // Mock the Resend SDK
-const mockEmailsSend = jest.fn();
+const mockEmailsSend = jest.fn<
+  Promise<ResendSendResult>,
+  [ResendSendPayload]
+>();
 jest.mock('resend', () => ({
   Resend: jest.fn().mockImplementation(() => ({
     emails: {
@@ -15,7 +30,9 @@ jest.mock('resend', () => ({
 describe('EmailService', () => {
   let service: EmailService;
 
-  const createService = async (overrides?: Record<string, string>) => {
+  const createService = async (
+    overrides?: Record<string, string | undefined>,
+  ) => {
     const mockConfigService = {
       get: jest.fn((key: string) => {
         const config: Record<string, string> = {
@@ -24,7 +41,10 @@ describe('EmailService', () => {
           FRONTEND_URL: 'http://localhost:3000',
           NODE_ENV: 'development',
         };
-        return overrides?.[key] ?? config[key];
+        if (overrides && Object.prototype.hasOwnProperty.call(overrides, key)) {
+          return overrides[key];
+        }
+        return config[key];
       }),
     };
 
@@ -55,14 +75,38 @@ describe('EmailService', () => {
 
       await service.sendVerificationEmail('user@example.com', 'abc123token');
 
-      expect(mockEmailsSend).toHaveBeenCalledWith(
+      const [payload] = mockEmailsSend.mock.calls[0] ?? [];
+      const typedPayload = payload as {
+        from?: string;
+        to?: string;
+        subject?: string;
+        html?: string;
+      };
+
+      expect(typedPayload).toEqual(
         expect.objectContaining({
           from: 'noreply@example.com',
           to: 'user@example.com',
           subject: 'Verify your email address',
-          html: expect.stringContaining(
-            'http://localhost:3000/verify-email?token=abc123token',
-          ),
+        }),
+      );
+      expect(typedPayload.html).toContain(
+        'http://localhost:3000/verify-email?token=abc123token',
+      );
+    });
+
+    it('should fall back to the default sender when EMAIL_FROM is missing', async () => {
+      service = await createService({ EMAIL_FROM: undefined });
+      mockEmailsSend.mockResolvedValue({
+        data: { id: 'email-id' },
+        error: null,
+      });
+
+      await service.sendVerificationEmail('user@example.com', 'abc123token');
+
+      expect(mockEmailsSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          from: 'onboarding@resend.dev',
         }),
       );
     });
@@ -96,15 +140,23 @@ describe('EmailService', () => {
 
       await service.sendPasswordResetEmail('user@example.com', 'resettoken');
 
-      expect(mockEmailsSend).toHaveBeenCalledWith(
+      const [payload] = mockEmailsSend.mock.calls[0] ?? [];
+      const typedPayload = payload as {
+        from?: string;
+        to?: string;
+        subject?: string;
+        html?: string;
+      };
+
+      expect(typedPayload).toEqual(
         expect.objectContaining({
           from: 'noreply@example.com',
           to: 'user@example.com',
           subject: 'Reset your password',
-          html: expect.stringContaining(
-            'http://localhost:3000/reset-password?token=resettoken',
-          ),
         }),
+      );
+      expect(typedPayload.html).toContain(
+        'http://localhost:3000/reset-password?token=resettoken',
       );
     });
 
