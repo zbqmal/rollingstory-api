@@ -1,0 +1,65 @@
+name: End-to-End Tests
+
+on:
+  pull_request:
+    branches: [dev]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rollingstory
+          POSTGRES_PASSWORD: rollingstory_password
+          POSTGRES_DB: rollingstory_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      
+      - name: Enable Corepack
+        run: corepack enable
+      
+      - name: Install dependencies
+        run: yarn install
+      
+      - name: Create .env.test file
+        run: |
+          cat > .env.test << EOF
+          DATABASE_URL="postgresql://rollingstory:rollingstory_password@localhost:5432/rollingstory_test?schema=public"
+          JWT_SECRET="test-jwt-secret-key-for-e2e-tests"
+          JWT_REFRESH_SECRET="test-jwt-refresh-secret-key-for-e2e-tests"
+          REDIS_HOST="localhost"
+          REDIS_PORT="6379"
+          RESEND_API_KEY="re_test_key"
+          EOF
+      
+      - name: Run Prisma migrations
+        run: npx dotenv -e .env.test -- npx prisma migrate deploy
+      
+      - name: Run E2E tests
+        run: yarn test:e2e

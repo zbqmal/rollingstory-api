@@ -15,7 +15,7 @@ import { RedisModule } from './redis/redis.module';
     ConfigModule.forRoot({
       isGlobal: true,
     }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 20 }]),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }]),
     PrismaModule,
     RedisModule,
     AuthModule,
