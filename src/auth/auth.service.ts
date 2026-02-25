@@ -308,6 +308,16 @@ export class AuthService {
     };
   }
 
+  async deleteAccount(userId: string, res: Response) {
+    await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    await this.prisma.user.delete({ where: { id: userId } });
+
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+
+    return { message: 'Account deleted successfully' };
+  }
+
   async verifyEmail(token: string) {
     const user = await this.prisma.user.findUnique({
       where: { emailVerificationToken: token },

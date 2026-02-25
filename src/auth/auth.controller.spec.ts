@@ -14,6 +14,7 @@ describe('AuthController', () => {
     refreshTokens: jest.fn(),
     logout: jest.fn(),
     getCurrentUser: jest.fn(),
+    deleteAccount: jest.fn(),
     verifyEmail: jest.fn(),
     resendVerification: jest.fn(),
     forgotPassword: jest.fn(),
@@ -174,6 +175,37 @@ describe('AuthController', () => {
 
       expect(mockAuthService.getCurrentUser).toHaveBeenCalledWith(mockUser.id);
       expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('deleteMe', () => {
+    it('should call authService.deleteAccount with user id and response', async () => {
+      const mockUser: User = {
+        id: 'user-id',
+        email: 'test@example.com',
+        username: 'testuser',
+        password: 'hashed',
+        isEmailVerified: false,
+        emailVerificationToken: null,
+        emailVerificationTokenExpiresAt: null,
+        passwordResetToken: null,
+        passwordResetTokenExpiresAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      const mockRes = { clearCookie: jest.fn() } as any;
+
+      mockAuthService.deleteAccount.mockResolvedValue({
+        message: 'Account deleted successfully',
+      });
+
+      const result = await controller.deleteMe(mockUser, mockRes);
+
+      expect(mockAuthService.deleteAccount).toHaveBeenCalledWith(
+        mockUser.id,
+        mockRes,
+      );
+      expect(result).toEqual({ message: 'Account deleted successfully' });
     });
   });
 

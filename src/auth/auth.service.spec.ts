@@ -22,6 +22,7 @@ describe('AuthService', () => {
       findFirst: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      delete: jest.fn(),
     },
     refreshToken: {
       create: jest.fn(),
@@ -636,6 +637,29 @@ describe('AuthService', () => {
       await expect(service.getCurrentUser('non-existent-id')).rejects.toThrow(
         UnauthorizedException,
       );
+    });
+  });
+
+  describe('deleteAccount', () => {
+    it('should delete refresh tokens and user, clear cookies, and return success message', async () => {
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
+      mockPrismaService.user.delete.mockResolvedValue({});
+
+      const result = await service.deleteAccount('user-id', mockRes);
+
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-id' },
+      });
+      expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
+        path: '/',
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
+      expect(result).toEqual({ message: 'Account deleted successfully' });
     });
   });
 
