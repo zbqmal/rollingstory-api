@@ -15,18 +15,19 @@ jest.mock('resend', () => ({
 describe('EmailService', () => {
   let service: EmailService;
 
-  const mockConfigService = {
-    get: jest.fn((key: string) => {
-      const config: Record<string, string> = {
-        RESEND_API_KEY: 're_test_key',
-        EMAIL_FROM: 'noreply@example.com',
-        FRONTEND_URL: 'http://localhost:3000',
-      };
-      return config[key];
-    }),
-  };
+  const createService = async (overrides?: Record<string, string>) => {
+    const mockConfigService = {
+      get: jest.fn((key: string) => {
+        const config: Record<string, string> = {
+          RESEND_API_KEY: 're_test_key',
+          EMAIL_FROM: 'noreply@example.com',
+          FRONTEND_URL: 'http://localhost:3000',
+          NODE_ENV: 'development',
+        };
+        return overrides?.[key] ?? config[key];
+      }),
+    };
 
-  beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         EmailService,
@@ -34,7 +35,11 @@ describe('EmailService', () => {
       ],
     }).compile();
 
-    service = module.get<EmailService>(EmailService);
+    return module.get<EmailService>(EmailService);
+  };
+
+  beforeEach(async () => {
+    service = await createService();
   });
 
   afterEach(() => {
@@ -60,6 +65,14 @@ describe('EmailService', () => {
           ),
         }),
       );
+    });
+
+    it('should skip sending verification emails in test env', async () => {
+      service = await createService({ NODE_ENV: 'test' });
+
+      await service.sendVerificationEmail('user@example.com', 'abc123token');
+
+      expect(mockEmailsSend).not.toHaveBeenCalled();
     });
 
     it('should log an error if send fails but not throw', async () => {
@@ -93,6 +106,14 @@ describe('EmailService', () => {
           ),
         }),
       );
+    });
+
+    it('should skip sending password reset emails in test env', async () => {
+      service = await createService({ NODE_ENV: 'test' });
+
+      await service.sendPasswordResetEmail('user@example.com', 'resettoken');
+
+      expect(mockEmailsSend).not.toHaveBeenCalled();
     });
 
     it('should log an error if send fails but not throw', async () => {

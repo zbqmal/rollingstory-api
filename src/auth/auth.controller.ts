@@ -34,7 +34,6 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('register')
-  @Throttle({ default: { ttl: 60000, limit: 1000 } })
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({
     status: 201,
@@ -52,7 +51,6 @@ export class AuthController {
   }
 
   @Post('login')
-  @Throttle({ default: { ttl: 60000, limit: 1000 } })
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({
     status: 201,
@@ -69,7 +67,6 @@ export class AuthController {
   }
 
   @Post('refresh')
-  @Throttle({ default: { ttl: 60000, limit: 1000 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Refresh access token using refresh token cookie' })
   @ApiResponse({
@@ -87,7 +84,6 @@ export class AuthController {
   }
 
   @Post('logout')
-  @Throttle({ default: { ttl: 60000, limit: 1000 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Logout user and revoke refresh token' })
   @ApiResponse({ status: 200, description: 'Successfully logged out' })
@@ -129,7 +125,6 @@ export class AuthController {
   }
 
   @Post('resend-verification')
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Resend email verification link' })
   @ApiResponse({
@@ -141,7 +136,6 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @Throttle({ default: { ttl: 60000, limit: 3 } })
   @HttpCode(200)
   @ApiOperation({ summary: 'Request password reset email' })
   @ApiResponse({

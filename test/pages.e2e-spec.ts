@@ -4,14 +4,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Pages (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let authToken: string;
-  let anotherAuthToken: string;
+  let authCookie: string;
+  let anotherAuthCookie: string;
   let anotherUserId: string;
   let workId: string;
   let collaborativeWorkId: string;
@@ -22,6 +23,7 @@ describe('Pages (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -46,7 +48,7 @@ describe('Pages (e2e)', () => {
     await prisma.work.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user and get auth token
+    // Create test user and extract auth cookie
     const registerRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
@@ -54,7 +56,16 @@ describe('Pages (e2e)', () => {
         username: 'testuser',
         password: 'password123',
       });
-    authToken = registerRes.body.token;
+
+    const setCookieHeader = registerRes.headers['set-cookie'] as
+      | string[]
+      | string;
+    const cookieArray = Array.isArray(setCookieHeader)
+      ? setCookieHeader
+      : [setCookieHeader];
+    const accessTokenCookie =
+      cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+    authCookie = accessTokenCookie.split(';')[0];
 
     // Create another test user
     const anotherRegisterRes = await request(app.getHttpServer())
@@ -64,13 +75,22 @@ describe('Pages (e2e)', () => {
         username: 'anotheruser',
         password: 'password123',
       });
-    anotherAuthToken = anotherRegisterRes.body.token;
+
+    const anotherSetCookieHeader = anotherRegisterRes.headers['set-cookie'] as
+      | string[]
+      | string;
+    const anotherCookieArray = Array.isArray(anotherSetCookieHeader)
+      ? anotherSetCookieHeader
+      : [anotherSetCookieHeader];
+    const anotherAccessTokenCookie =
+      anotherCookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+    anotherAuthCookie = anotherAccessTokenCookie.split(';')[0];
     anotherUserId = anotherRegisterRes.body.user.id;
 
     // Create a test work
     const workRes = await request(app.getHttpServer())
       .post('/works')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set('Cookie', authCookie)
       .send({
         title: 'Test Novel',
         description: 'A test novel',
@@ -82,7 +102,7 @@ describe('Pages (e2e)', () => {
     // Create a collaborative work
     const collabWorkRes = await request(app.getHttpServer())
       .post('/works')
-      .set('Authorization', `Bearer ${authToken}`)
+      .set('Cookie', authCookie)
       .send({
         title: 'Collaborative Novel',
         description: 'A collaborative novel',
@@ -104,7 +124,7 @@ describe('Pages (e2e)', () => {
     it('should create a page as work owner with approved status', () => {
       return request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           content: 'This is the first page of my novel.',
         })
@@ -124,7 +144,7 @@ describe('Pages (e2e)', () => {
     it('should create a page as non-owner with pending status', () => {
       return request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({
           content: 'I am contributing to this story.',
         })
@@ -142,14 +162,14 @@ describe('Pages (e2e)', () => {
       // Create first page
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 1' })
         .expect(201);
 
       // Create second page
       const res = await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 2' })
         .expect(201);
 
@@ -168,7 +188,7 @@ describe('Pages (e2e)', () => {
     it('should fail if user is not owner and work does not allow collaboration', () => {
       return request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({
           content: 'I should not be able to add this.',
         })
@@ -182,7 +202,7 @@ describe('Pages (e2e)', () => {
       const longContent = 'a'.repeat(501);
       return request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           content: longContent,
         })
@@ -195,7 +215,7 @@ describe('Pages (e2e)', () => {
     it('should fail if work does not exist', () => {
       return request(app.getHttpServer())
         .post('/works/non-existent-id/pages')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           content: 'Content',
         })
@@ -208,12 +228,12 @@ describe('Pages (e2e)', () => {
       // Create multiple pages
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 1' });
 
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 2' });
 
       return request(app.getHttpServer())
@@ -250,12 +270,12 @@ describe('Pages (e2e)', () => {
     it('should return a specific page', async () => {
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 1' });
 
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 2' });
 
       return request(app.getHttpServer())
@@ -287,7 +307,7 @@ describe('Pages (e2e)', () => {
     beforeEach(async () => {
       const res = await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Original content' });
       pageId = res.body.id;
     });
@@ -295,7 +315,7 @@ describe('Pages (e2e)', () => {
     it('should update page content', () => {
       return request(app.getHttpServer())
         .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Updated content' })
         .expect(200)
         .expect((res) => {
@@ -314,7 +334,7 @@ describe('Pages (e2e)', () => {
     it('should fail if user is not the page author', () => {
       return request(app.getHttpServer())
         .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ content: 'Hacked content' })
         .expect(403);
     });
@@ -323,7 +343,7 @@ describe('Pages (e2e)', () => {
       const longContent = 'a'.repeat(501);
       return request(app.getHttpServer())
         .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: longContent })
         .expect(400);
     });
@@ -331,7 +351,7 @@ describe('Pages (e2e)', () => {
     it('should fail if page does not exist', () => {
       return request(app.getHttpServer())
         .patch('/pages/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Content' })
         .expect(404);
     });
@@ -344,26 +364,26 @@ describe('Pages (e2e)', () => {
     beforeEach(async () => {
       const res1 = await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 1' });
       page1Id = res1.body.id;
 
       const res2 = await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 2' });
       page2Id = res2.body.id;
 
       await request(app.getHttpServer())
         .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page 3' });
     });
 
     it('should delete a page', () => {
       return request(app.getHttpServer())
         .delete(`/pages/${page1Id}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(200)
         .expect((res) => {
           expect(res.body.message).toContain('deleted successfully');
@@ -374,7 +394,7 @@ describe('Pages (e2e)', () => {
       // Delete page 2
       await request(app.getHttpServer())
         .delete(`/pages/${page2Id}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(200);
 
       // Get all pages
@@ -398,14 +418,14 @@ describe('Pages (e2e)', () => {
     it('should fail if user is not the page author', () => {
       return request(app.getHttpServer())
         .delete(`/pages/${page1Id}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .expect(403);
     });
 
     it('should fail if page does not exist', () => {
       return request(app.getHttpServer())
         .delete('/pages/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(404);
     });
   });
@@ -416,17 +436,17 @@ describe('Pages (e2e)', () => {
         // Create a pending contribution
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending contribution 1' });
 
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending contribution 2' });
 
         return request(app.getHttpServer())
           .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(200)
           .expect((res) => {
             expect(Array.isArray(res.body)).toBe(true);
@@ -440,12 +460,12 @@ describe('Pages (e2e)', () => {
       it('should fail if user is not the work owner', async () => {
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending contribution' });
 
         return request(app.getHttpServer())
           .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .expect(403)
           .expect((res) => {
             expect(res.body.message).toContain('Only the work owner');
@@ -455,7 +475,7 @@ describe('Pages (e2e)', () => {
       it('should return empty array if no pending contributions', () => {
         return request(app.getHttpServer())
           .get(`/works/${workId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(200)
           .expect((res) => {
             expect(Array.isArray(res.body)).toBe(true);
@@ -470,7 +490,7 @@ describe('Pages (e2e)', () => {
       beforeEach(async () => {
         const res = await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending contribution to approve' });
         pendingPageId = res.body.id;
       });
@@ -478,7 +498,7 @@ describe('Pages (e2e)', () => {
       it('should approve a pending contribution', async () => {
         const res = await request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(201);
 
         expect(res.body.status).toBe('approved');
@@ -491,13 +511,13 @@ describe('Pages (e2e)', () => {
         // Create an approved page first
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .send({ content: 'Owner page 1' });
 
         // Approve the pending contribution
         const res = await request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(201);
 
         expect(res.body.pageNumber).toBe(2);
@@ -507,7 +527,7 @@ describe('Pages (e2e)', () => {
         // Approve the contribution
         await request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(201);
 
         // Check public list
@@ -523,7 +543,7 @@ describe('Pages (e2e)', () => {
       it('should fail if user is not the work owner', () => {
         return request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .expect(403)
           .expect((res) => {
             expect(res.body.message).toContain('Only the work owner');
@@ -534,13 +554,13 @@ describe('Pages (e2e)', () => {
         // Approve once
         await request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(201);
 
         // Try to approve again
         return request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(400)
           .expect((res) => {
             expect(res.body.message).toContain('not pending');
@@ -554,7 +574,7 @@ describe('Pages (e2e)', () => {
       beforeEach(async () => {
         const res = await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending contribution to reject' });
         pendingPageId = res.body.id;
       });
@@ -562,7 +582,7 @@ describe('Pages (e2e)', () => {
       it('should reject a pending contribution', async () => {
         const res = await request(app.getHttpServer())
           .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(200);
 
         expect(res.body.message).toContain('rejected');
@@ -572,13 +592,13 @@ describe('Pages (e2e)', () => {
         // Reject the contribution
         await request(app.getHttpServer())
           .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(200);
 
         // Try to get it - should not be in pending list
         const res = await request(app.getHttpServer())
           .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(200);
 
         expect(res.body).toHaveLength(0);
@@ -587,7 +607,7 @@ describe('Pages (e2e)', () => {
       it('should fail if user is not the work owner', () => {
         return request(app.getHttpServer())
           .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .expect(403)
           .expect((res) => {
             expect(res.body.message).toContain('Only the work owner');
@@ -598,13 +618,13 @@ describe('Pages (e2e)', () => {
         // Approve the page first
         await request(app.getHttpServer())
           .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(201);
 
         // Try to reject approved page
         return request(app.getHttpServer())
           .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .expect(400)
           .expect((res) => {
             expect(res.body.message).toContain('not pending');
@@ -617,13 +637,13 @@ describe('Pages (e2e)', () => {
         // Create approved page
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${authToken}`)
+          .set('Cookie', authCookie)
           .send({ content: 'Approved page' });
 
         // Create pending page
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending page' });
 
         const res = await request(app.getHttpServer())
@@ -639,7 +659,7 @@ describe('Pages (e2e)', () => {
         // Create pending page
         await request(app.getHttpServer())
           .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
+          .set('Cookie', anotherAuthCookie)
           .send({ content: 'Pending page' });
 
         // Try to get by pageNumber (should not exist since pending pages have null pageNumber)
@@ -655,27 +675,27 @@ describe('Pages (e2e)', () => {
       // Create pages with different authors
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page by owner 1' });
 
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page by owner 2' });
 
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ content: 'Page by collaborator' });
 
       // Approve the collaborator's page
       const pendingRes = await request(app.getHttpServer())
         .get(`/works/${collaborativeWorkId}/pages/pending`)
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Cookie', authCookie);
 
       await request(app.getHttpServer())
         .post(`/pages/${pendingRes.body[0].id}/approve`)
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Cookie', authCookie);
 
       // Get collaborators
       return request(app.getHttpServer())
@@ -716,13 +736,13 @@ describe('Pages (e2e)', () => {
       // Create approved page by owner
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Approved page' });
 
       // Create pending page by collaborator (not approved)
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ content: 'Pending page' });
 
       // Get collaborators
@@ -744,33 +764,42 @@ describe('Pages (e2e)', () => {
           username: 'charlie',
           password: 'password123',
         });
-      const thirdUserToken = thirdUserRes.body.token;
+      // Extract third user's cookie from Set-Cookie header
+      const thirdSetCookieHeader = thirdUserRes.headers['set-cookie'] as
+        | string[]
+        | string;
+      const thirdCookieArray = Array.isArray(thirdSetCookieHeader)
+        ? thirdSetCookieHeader
+        : [thirdSetCookieHeader];
+      const thirdAccessTokenCookie =
+        thirdCookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+      const thirdUserCookie = thirdAccessTokenCookie.split(';')[0];
 
       // Create pages for each user (1 page each)
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ content: 'Page by testuser' });
 
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ content: 'Page by anotheruser' });
 
       await request(app.getHttpServer())
         .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${thirdUserToken}`)
+        .set('Cookie', thirdUserCookie)
         .send({ content: 'Page by charlie' });
 
       // Approve pending pages
       const pendingRes = await request(app.getHttpServer())
         .get(`/works/${collaborativeWorkId}/pages/pending`)
-        .set('Authorization', `Bearer ${authToken}`);
+        .set('Cookie', authCookie);
 
       for (const page of pendingRes.body) {
         await request(app.getHttpServer())
           .post(`/pages/${page.id}/approve`)
-          .set('Authorization', `Bearer ${authToken}`);
+          .set('Cookie', authCookie);
       }
 
       // Get collaborators
