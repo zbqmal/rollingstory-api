@@ -4,15 +4,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 
 describe('Works (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let authToken: string;
+  let authCookie: string;
   let userId: string;
-  let anotherAuthToken: string;
+  let anotherAuthCookie: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -20,6 +21,7 @@ describe('Works (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -44,7 +46,7 @@ describe('Works (e2e)', () => {
     await prisma.work.deleteMany();
     await prisma.user.deleteMany();
 
-    // Create test user and get auth token
+    // Create test user and extract auth cookie
     const registerRes = await request(app.getHttpServer())
       .post('/auth/register')
       .send({
@@ -52,7 +54,16 @@ describe('Works (e2e)', () => {
         username: 'testuser',
         password: 'password123',
       });
-    authToken = registerRes.body.token;
+
+    const setCookieHeader = registerRes.headers['set-cookie'] as
+      | string[]
+      | string;
+    const cookieArray = Array.isArray(setCookieHeader)
+      ? setCookieHeader
+      : [setCookieHeader];
+    const accessTokenCookie =
+      cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+    authCookie = accessTokenCookie.split(';')[0];
     userId = registerRes.body.user.id;
 
     // Create another test user
@@ -63,14 +74,23 @@ describe('Works (e2e)', () => {
         username: 'anotheruser',
         password: 'password123',
       });
-    anotherAuthToken = anotherRegisterRes.body.token;
+
+    const anotherSetCookieHeader = anotherRegisterRes.headers['set-cookie'] as
+      | string[]
+      | string;
+    const anotherCookieArray = Array.isArray(anotherSetCookieHeader)
+      ? anotherSetCookieHeader
+      : [anotherSetCookieHeader];
+    const anotherAccessTokenCookie =
+      anotherCookieArray.find((c) => c.startsWith('access_token=')) ?? '';
+    anotherAuthCookie = anotherAccessTokenCookie.split(';')[0];
   });
 
   describe('/works (POST)', () => {
     it('should create a new work', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           title: 'My First Novel',
           description: 'A great story',
@@ -95,7 +115,7 @@ describe('Works (e2e)', () => {
     it('should create work with default values', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           title: 'My Second Novel',
         })
@@ -119,7 +139,7 @@ describe('Works (e2e)', () => {
     it('should return 400 for invalid data', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           title: 'AB', // Too short
         })
@@ -129,7 +149,7 @@ describe('Works (e2e)', () => {
     it('should return 400 for pageCharLimit out of range', () => {
       return request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           title: 'My Novel',
           pageCharLimit: 50, // Too low
@@ -143,17 +163,17 @@ describe('Works (e2e)', () => {
       // Create some test works
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Work 1' });
 
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Work 2' });
 
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ title: 'Work 3' });
     });
 
@@ -191,24 +211,24 @@ describe('Works (e2e)', () => {
     beforeEach(async () => {
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'My Work 1' });
 
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'My Work 2' });
 
       await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ title: 'Another Work' });
     });
 
     it('should return only current user works', () => {
       return request(app.getHttpServer())
         .get('/works/my')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(200)
         .expect((res) => {
           expect(res.body).toBeInstanceOf(Array);
@@ -228,7 +248,7 @@ describe('Works (e2e)', () => {
     beforeEach(async () => {
       const res = await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Test Work' });
       workId = res.body.id;
     });
@@ -259,7 +279,7 @@ describe('Works (e2e)', () => {
     beforeEach(async () => {
       const res = await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Original Title' });
       workId = res.body.id;
     });
@@ -267,7 +287,7 @@ describe('Works (e2e)', () => {
     it('should update a work if user is owner', () => {
       return request(app.getHttpServer())
         .patch(`/works/${workId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({
           title: 'Updated Title',
           description: 'Updated Description',
@@ -289,7 +309,7 @@ describe('Works (e2e)', () => {
     it('should return 403 if user is not owner', () => {
       return request(app.getHttpServer())
         .patch(`/works/${workId}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .send({ title: 'Updated Title' })
         .expect(403);
     });
@@ -297,7 +317,7 @@ describe('Works (e2e)', () => {
     it('should return 404 for non-existent work', () => {
       return request(app.getHttpServer())
         .patch('/works/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Updated Title' })
         .expect(404);
     });
@@ -309,7 +329,7 @@ describe('Works (e2e)', () => {
     beforeEach(async () => {
       const res = await request(app.getHttpServer())
         .post('/works')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .send({ title: 'Work to Delete' });
       workId = res.body.id;
     });
@@ -317,7 +337,7 @@ describe('Works (e2e)', () => {
     it('should delete a work if user is owner', () => {
       return request(app.getHttpServer())
         .delete(`/works/${workId}`)
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(200)
         .expect((res) => {
           expect(res.body.message).toBe('Work deleted successfully');
@@ -333,14 +353,14 @@ describe('Works (e2e)', () => {
     it('should return 403 if user is not owner', () => {
       return request(app.getHttpServer())
         .delete(`/works/${workId}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .set('Cookie', anotherAuthCookie)
         .expect(403);
     });
 
     it('should return 404 for non-existent work', () => {
       return request(app.getHttpServer())
         .delete('/works/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
+        .set('Cookie', authCookie)
         .expect(404);
     });
   });

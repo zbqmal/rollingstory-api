@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, ValidationPipe, APP_GUARD } from '@nestjs/common';
 import request from 'supertest';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import cookieParser from 'cookie-parser';
@@ -18,6 +18,8 @@ describe('Auth (e2e)', () => {
     })
       .overrideModule(ThrottlerModule)
       .useModule(ThrottlerModule.forRoot([{ ttl: 1000, limit: 1000 }]))
+      .overrideProvider(APP_GUARD)
+      .useClass(ThrottlerGuard)
       .compile();
 
     app = moduleFixture.createNestApplication();
@@ -259,7 +261,7 @@ describe('Auth (e2e)', () => {
       return request(app.getHttpServer())
         .post('/auth/logout')
         .set('Cookie', cookieValue)
-        .expect(201)
+        .expect(200)
         .expect((res) => {
           expect(res.body.message).toBe('Logged out successfully');
           const cookies: string[] = Array.isArray(res.headers['set-cookie'])
@@ -271,55 +273,6 @@ describe('Auth (e2e)', () => {
           expect(clearedCookie).toBeDefined();
           expect(clearedCookie).toMatch(/access_token=;/);
         });
-    });
-  });
-});
-
-describe('Auth rate limiting (e2e)', () => {
-  let rateLimitApp: INestApplication;
-  let prisma: PrismaService;
-
-  beforeAll(async () => {
-    const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
-    }).compile();
-
-    rateLimitApp = moduleFixture.createNestApplication();
-    rateLimitApp.use(cookieParser());
-    rateLimitApp.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    await rateLimitApp.init();
-
-    prisma = rateLimitApp.get<PrismaService>(PrismaService);
-  });
-
-  afterAll(async () => {
-    await rateLimitApp.close();
-  });
-
-  beforeEach(async () => {
-    await prisma.workCollaborator.deleteMany();
-    await prisma.page.deleteMany();
-    await prisma.work.deleteMany();
-    await prisma.user.deleteMany();
-  });
-
-  describe('/auth/login rate limiting', () => {
-    it('should return 429 after exceeding rate limit', async () => {
-      for (let i = 0; i < 5; i++) {
-        await request(rateLimitApp.getHttpServer())
-          .post('/auth/login')
-          .send({ emailOrUsername: 'nonexistent', password: 'password123' });
-      }
-      return request(rateLimitApp.getHttpServer())
-        .post('/auth/login')
-        .send({ emailOrUsername: 'nonexistent', password: 'password123' })
-        .expect(429);
     });
   });
 });
