@@ -212,7 +212,10 @@ describe('Auth (e2e)', () => {
     it('should set both access_token and refresh_token cookies on login', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ emailOrUsername: TEST_USER.email, password: TEST_USER.password })
+        .send({
+          emailOrUsername: TEST_USER.email,
+          password: TEST_USER.password,
+        })
         .expect(201);
 
       const cookies: string[] = Array.isArray(res.headers['set-cookie'])
@@ -225,7 +228,10 @@ describe('Auth (e2e)', () => {
     it('should set HttpOnly flag on both cookies on login', async () => {
       const res = await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ emailOrUsername: TEST_USER.email, password: TEST_USER.password })
+        .send({
+          emailOrUsername: TEST_USER.email,
+          password: TEST_USER.password,
+        })
         .expect(201);
 
       const setCookie = res.headers['set-cookie'] as string[] | string;
@@ -283,6 +289,7 @@ describe('Auth (e2e)', () => {
 
   describe('/auth/logout (POST)', () => {
     let cookieValue: string;
+    let allCookies: string;
 
     beforeEach(async () => {
       const response = await request(app.getHttpServer())
@@ -302,6 +309,8 @@ describe('Auth (e2e)', () => {
       const accessTokenCookie =
         cookieArray.find((c) => c.startsWith('access_token=')) ?? '';
       cookieValue = accessTokenCookie.split(';')[0];
+      // Store all cookies for tests that need both access_token and refresh_token
+      allCookies = cookieArray.map((c) => c.split(';')[0]).join('; ');
     });
 
     it('should logout and clear cookie', () => {
@@ -323,15 +332,10 @@ describe('Auth (e2e)', () => {
     });
 
     it('should reject access_token on a protected route after logout (JTI denylist)', async () => {
-      const { accessTokenCookie, allCookies } = await registerUser(
-        app,
-        TEST_USER,
-      );
-
       // Verify token works before logout
       await request(app.getHttpServer())
         .get('/auth/me')
-        .set('Cookie', accessTokenCookie)
+        .set('Cookie', cookieValue)
         .expect(200);
 
       // Logout
@@ -343,7 +347,7 @@ describe('Auth (e2e)', () => {
       // Old access token should now be rejected
       await request(app.getHttpServer())
         .get('/auth/me')
-        .set('Cookie', accessTokenCookie)
+        .set('Cookie', cookieValue)
         .expect(401);
     });
 
@@ -408,7 +412,9 @@ describe('Auth (e2e)', () => {
       const setCookie = res.headers['set-cookie'] as string[] | string;
       const cookieArray = Array.isArray(setCookie) ? setCookie : [setCookie];
       expect(cookieArray.some((c) => c.startsWith('access_token='))).toBe(true);
-      expect(cookieArray.some((c) => c.startsWith('refresh_token='))).toBe(true);
+      expect(cookieArray.some((c) => c.startsWith('refresh_token='))).toBe(
+        true,
+      );
       expect(isHttpOnly(setCookie, 'access_token')).toBe(true);
       expect(isHttpOnly(setCookie, 'refresh_token')).toBe(true);
     });
@@ -559,7 +565,10 @@ describe('Auth (e2e)', () => {
       // Login with OLD password should fail
       await request(app.getHttpServer())
         .post('/auth/login')
-        .send({ emailOrUsername: TEST_USER.email, password: TEST_USER.password })
+        .send({
+          emailOrUsername: TEST_USER.email,
+          password: TEST_USER.password,
+        })
         .expect(401);
     });
   });
