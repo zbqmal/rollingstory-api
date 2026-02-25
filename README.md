@@ -175,6 +175,7 @@ WorkCollaborator {
 - `POST /auth/register` - Register new user
 - `POST /auth/login` - Login and receive JWT token
 - `GET /auth/me` - Get current user profile (protected)
+- `DELETE /auth/me` - Delete current user account (protected)
 
 #### Works/Stories (`/works`)
 
