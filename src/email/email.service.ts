@@ -12,7 +12,8 @@ export class EmailService {
 
   constructor(private config: ConfigService) {
     const apiKey = this.config.get<string>('RESEND_API_KEY') ?? '';
-    this.from = this.config.get<string>('EMAIL_FROM') ?? '';
+    this.from =
+      this.config.get<string>('EMAIL_FROM') ?? 'onboarding@resend.dev';
     this.frontendUrl = this.config.get<string>('FRONTEND_URL') ?? '';
     this.emailDisabled = this.config.get<string>('NODE_ENV') === 'test';
     this.resend = new Resend(apiKey);
