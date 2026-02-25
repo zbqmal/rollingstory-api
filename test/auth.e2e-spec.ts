@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication, ValidationPipe, APP_GUARD } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import request from 'supertest';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
