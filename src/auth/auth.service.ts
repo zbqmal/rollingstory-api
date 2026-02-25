@@ -309,6 +309,17 @@ export class AuthService {
   }
 
   async deleteAccount(userId: string, res: Response) {
+    // Check if user has any authored works
+    const authoredWorksCount = await this.prisma.work.count({
+      where: { authorId: userId },
+    });
+
+    if (authoredWorksCount > 0) {
+      throw new ConflictException(
+        `Cannot delete account: You have ${authoredWorksCount} authored work(s). Please delete your works before deleting your account.`,
+      );
+    }
+
     await this.prisma.refreshToken.deleteMany({ where: { userId } });
     await this.prisma.user.delete({ where: { id: userId } });
 
