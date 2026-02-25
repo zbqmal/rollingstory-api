@@ -133,6 +133,7 @@ describe('AuthService', () => {
       mockPrismaService.user.create.mockResolvedValue(mockUser);
       mockPrismaService.user.update.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue(mockToken);
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.register(registerDto, mockRes, mockReq);
@@ -155,6 +156,9 @@ describe('AuthService', () => {
         mockUser.email,
         expectAnyString(),
       );
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: mockUser.id },
+      });
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         mockToken,
@@ -223,6 +227,7 @@ describe('AuthService', () => {
       mockPrismaService.user.findFirst.mockResolvedValue(mockUser);
       (bcrypt.compare as jest.Mock).mockResolvedValue(true);
       mockJwtService.sign.mockReturnValue(mockToken);
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.login(loginDto, mockRes, mockReq);
@@ -239,6 +244,9 @@ describe('AuthService', () => {
         loginDto.password,
         mockUser.password,
       );
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: mockUser.id },
+      });
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
         mockToken,
@@ -305,6 +313,7 @@ describe('AuthService', () => {
       mockPrismaService.refreshToken.delete.mockResolvedValue({});
       mockPrismaService.user.findUnique.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('new-access-token');
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
 
       const result = await service.refreshTokens(rawToken, mockRes, mockReq);
@@ -318,6 +327,9 @@ describe('AuthService', () => {
       );
       expect(mockPrismaService.refreshToken.delete).toHaveBeenCalledWith({
         where: { id: mockStoredToken.id },
+      });
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: mockUser.id },
       });
       expect(mockRes.cookie).toHaveBeenCalledWith(
         'access_token',
@@ -371,6 +383,7 @@ describe('AuthService', () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
       mockPrismaService.user.create.mockResolvedValue(mockUser);
       mockJwtService.sign.mockReturnValue('jwt-token');
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
       mockPrismaService.refreshToken.create.mockResolvedValue({});
     };
 
@@ -518,22 +531,15 @@ describe('AuthService', () => {
 
     const rawToken = `user-id.abcdef1234567890`;
 
-    it('should revoke the matched refresh token and clear cookies', async () => {
+    it('should revoke all refresh tokens for the user and clear cookies', async () => {
       const req = buildRequest({ cookies: { refresh_token: rawToken } });
 
-      mockPrismaService.refreshToken.findMany.mockResolvedValue([
-        mockStoredToken,
-      ]);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
       const result = await service.logout(req, mockRes);
 
-      expect(mockPrismaService.refreshToken.findMany).toHaveBeenCalledWith({
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
         where: { userId: 'user-id' },
-      });
-      expect(mockPrismaService.refreshToken.delete).toHaveBeenCalledWith({
-        where: { id: mockStoredToken.id },
       });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
@@ -571,11 +577,7 @@ describe('AuthService', () => {
       });
 
       mockJwtService.decode.mockReturnValue({ jti, exp });
-      mockPrismaService.refreshToken.findMany.mockResolvedValue([
-        mockStoredToken,
-      ]);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
       await service.logout(req, mockRes);
 
@@ -600,11 +602,7 @@ describe('AuthService', () => {
     it('should skip Redis denylist if access_token cookie is absent', async () => {
       const req = buildRequest({ cookies: { refresh_token: rawToken } });
 
-      mockPrismaService.refreshToken.findMany.mockResolvedValue([
-        mockStoredToken,
-      ]);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
       await service.logout(req, mockRes);
 
@@ -623,15 +621,13 @@ describe('AuthService', () => {
 
       mockJwtService.decode.mockReturnValue({ jti: 'some-jti', exp });
       mockRedis.set.mockRejectedValueOnce(new Error('Redis unreachable'));
-      mockPrismaService.refreshToken.findMany.mockResolvedValue([
-        mockStoredToken,
-      ]);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
-      mockPrismaService.refreshToken.delete.mockResolvedValue({});
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
 
       const result = await service.logout(req, mockRes);
 
-      expect(mockPrismaService.refreshToken.delete).toHaveBeenCalled();
+      expect(mockPrismaService.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'user-id' },
+      });
       expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
         path: '/',
       });
