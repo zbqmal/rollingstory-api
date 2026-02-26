@@ -226,93 +226,96 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 
 ---
 
-## 5. Pages E2E Test Plan (`test/pages.e2e-spec.ts`) — ✅ Phase 4
+## 5. Pages E2E Test Plan (`test/pages.e2e-spec.ts`) — ✅ Phase 5
 
 ### `POST /works/:workId/pages`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should create a page with status approved when owner posts |
-| ✅ Added in Phase 4 | should assign sequential page numbers to owner pages |
-| ✅ Added in Phase 4 | should create a page with status pending when non-owner contributes |
-| ✅ Added in Phase 4 | should return 403 if collaboration is disabled and user is not owner |
-| ✅ Added in Phase 4 | should return 400 if content exceeds pageCharLimit |
-| ✅ Added in Phase 4 | should return 400 if content is empty |
-| ✅ Added in Phase 4 | should return 404 if work does not exist |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should create a page with status approved when owner posts |
+| ✅ Added in Phase 5 | should assign sequential page numbers to owner pages |
+| ✅ Added in Phase 5 | should create a page with status pending when non-owner contributes |
+| ✅ Added in Phase 5 | should return 403 if collaboration is disabled and user is not owner |
+| ✅ Added in Phase 5 | should return 400 if content exceeds pageCharLimit |
+| ✅ Added in Phase 5 | should return 400 if content is empty |
+| ✅ Added in Phase 5 | should return 404 if work does not exist |
 
 ### `GET /works/:workId/pages`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return empty array when work has no approved pages |
-| ✅ Added in Phase 4 | should return only approved pages |
-| ✅ Added in Phase 4 | should return pages ordered by pageNumber ascending |
-| ✅ Added in Phase 4 | should be accessible without authentication |
+| ✅ Added in Phase 5 | should return empty array when work has no approved pages |
+| ✅ Added in Phase 5 | should return only approved pages |
+| ✅ Added in Phase 5 | should return pages ordered by pageNumber ascending |
+| ✅ Added in Phase 5 | should be accessible without authentication |
 
 ### `GET /works/:workId/pages/pending`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should return pending contributions as work owner |
-| ✅ Added in Phase 4 | should return 403 if not the work owner |
-| ✅ Added in Phase 4 | should return empty array when there are no pending contributions |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should return pending contributions as work owner |
+| ✅ Added in Phase 5 | should return 403 if not the work owner |
+| ✅ Added in Phase 5 | should return empty array when there are no pending contributions |
 
 ### `GET /works/:workId/pages/:number`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return a specific approved page by number |
-| ✅ Added in Phase 4 | should return 404 if page number does not exist |
-| ✅ Added in Phase 4 | should be accessible without authentication |
+| ✅ Added in Phase 5 | should return a specific approved page by number |
+| ✅ Added in Phase 5 | should return 404 if page number does not exist |
+| ✅ Added in Phase 5 | should be accessible without authentication |
+| ✅ Added in Phase 5 | should return 400 when page number is not a valid integer |
 
 ### `PATCH /pages/:id`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should update page content as the page author |
-| ✅ Added in Phase 4 | should return 403 if not the page author |
-| ✅ Added in Phase 4 | should return 400 if updated content exceeds pageCharLimit |
-| ✅ Added in Phase 4 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should update page content as the page author |
+| ✅ Added in Phase 5 | should return 403 if not the page author |
+| ✅ Added in Phase 5 | should return 400 if updated content exceeds pageCharLimit |
+| ✅ Added in Phase 5 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 403 when trying to update a pending page |
 
 ### `DELETE /pages/:id`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should delete a page as the author and reorder subsequent pages |
-| ✅ Added in Phase 4 | should return 403 if not the page author |
-| ✅ Added in Phase 4 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should delete a page as the author and reorder subsequent pages |
+| ✅ Added in Phase 5 | should return 403 if not the page author |
+| ✅ Added in Phase 5 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 403 when trying to delete a pending page |
 
 ### `POST /pages/:id/approve`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should approve a pending contribution as work owner |
-| ✅ Added in Phase 4 | should assign correct page number to approved contribution (after existing approved pages) |
-| ✅ Added in Phase 4 | should return 403 if not the work owner |
-| ✅ Added in Phase 4 | should return 400 if page is already approved |
-| ✅ Added in Phase 4 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should approve a pending contribution as work owner |
+| ✅ Added in Phase 5 | should assign correct page number to approved contribution (after existing approved pages) |
+| ✅ Added in Phase 5 | should return 403 if not the work owner |
+| ✅ Added in Phase 5 | should return 400 if page is already approved |
+| ✅ Added in Phase 5 | should return 404 if page does not exist |
 
 ### `DELETE /pages/:id/reject`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return 401 if not authenticated |
-| ✅ Added in Phase 4 | should reject and permanently delete a pending contribution as work owner |
-| ✅ Added in Phase 4 | should return 403 if not the work owner |
-| ✅ Added in Phase 4 | should return 400 if page is not pending (e.g., already approved) |
-| ✅ Added in Phase 4 | should return 404 if page does not exist |
+| ✅ Added in Phase 5 | should return 401 if not authenticated |
+| ✅ Added in Phase 5 | should reject and permanently delete a pending contribution as work owner |
+| ✅ Added in Phase 5 | should return 403 if not the work owner |
+| ✅ Added in Phase 5 | should return 400 if page is not pending (e.g., already approved) |
+| ✅ Added in Phase 5 | should return 404 if page does not exist |
 
 ### `GET /works/:workId/collaborators`
 
 | Status | Test |
 |--------|------|
-| ✅ Added in Phase 4 | should return empty array when no collaborators exist |
-| ✅ Added in Phase 4 | should return collaborators with page counts after approving contributions |
-| ✅ Added in Phase 4 | should not count pending contributions in collaborators |
-| ✅ Added in Phase 4 | should return 404 if work does not exist |
-| ✅ Added in Phase 4 | should be accessible without authentication |
+| ✅ Added in Phase 5 | should return empty array when no collaborators exist |
+| ✅ Added in Phase 5 | should return collaborators with page counts after approving contributions |
+| ✅ Added in Phase 5 | should not count pending contributions in collaborators |
+| ✅ Added in Phase 5 | should return 404 if work does not exist |
+| ✅ Added in Phase 5 | should be accessible without authentication |
