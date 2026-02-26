@@ -155,15 +155,17 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 
 | Status | Test |
 |--------|------|
-| ⏳ Future Phase | should delete account and return 200 |
-| ⏳ Future Phase | should return 401 after account deletion |
+| ✅ Added in Phase 6 | should delete account and return 200 |
+| ✅ Added in Phase 6 | should return 401 after account deletion |
+| ✅ Added in Phase 6 | should return 401 when not authenticated |
+| ✅ Added in Phase 6 | should return 409 if user has authored works |
 
 ### Rate Limiting
 
 | Status | Test |
 |--------|------|
-| ✅ Exists | should return 429 after exceeding rate limit |
-| ⏳ Future Phase | should reset rate limit after TTL window |
+| ✅ Added in Phase 6 | should return 429 after exceeding rate limit |
+| ⏳ Deferred — see test comment | should reset rate limit after TTL window |
 
 ---
 

@@ -10,7 +10,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import cookieParser from 'cookie-parser';
 import { cleanDatabase } from './helpers/db.helper';
 import { registerUser, TEST_USER } from './helpers/auth.helper';
-import { isHttpOnly } from './helpers/cookie.helper';
+import { isHttpOnly, isCookieCleared } from './helpers/cookie.helper';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
@@ -573,5 +573,107 @@ describe('Auth (e2e)', () => {
         })
         .expect(401);
     });
+  });
+
+  describe('DELETE /auth/me', () => {
+    it('should return 401 when not authenticated', () => {
+      return request(app.getHttpServer()).delete('/auth/me').expect(401);
+    });
+
+    it('should delete account and return 200', async () => {
+      const { allCookies } = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(200);
+
+      expect(res.body.message).toBe('Account deleted successfully');
+
+      const setCookieHeader = res.headers['set-cookie'] as string[] | string;
+      expect(isCookieCleared(setCookieHeader, 'access_token')).toBe(true);
+      expect(isCookieCleared(setCookieHeader, 'refresh_token')).toBe(true);
+    });
+
+    it('should return 401 when trying to access /auth/me after account deletion', async () => {
+      const { accessTokenCookie, allCookies } = await registerUser(
+        app,
+        TEST_USER,
+      );
+
+      await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Cookie', accessTokenCookie)
+        .expect(401);
+    });
+
+    it('should return 409 if user has authored works', async () => {
+      const { allCookies } = await registerUser(app, TEST_USER);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', allCookies)
+        .send({ title: 'My Work' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(409);
+    });
+  });
+
+  describe('Rate Limiting', () => {
+    let rateLimitApp: INestApplication;
+
+    beforeAll(async () => {
+      const moduleFixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModule],
+      })
+        .overrideModule(ThrottlerModule)
+        .useModule(ThrottlerModule.forRoot([{ ttl: 60000, limit: 3 }]))
+        .overrideProvider(APP_GUARD)
+        .useClass(ThrottlerGuard)
+        .compile();
+
+      rateLimitApp = moduleFixture.createNestApplication();
+      rateLimitApp.use(cookieParser());
+      rateLimitApp.useGlobalPipes(
+        new ValidationPipe({
+          whitelist: true,
+          forbidNonWhitelisted: true,
+          transform: true,
+        }),
+      );
+
+      await rateLimitApp.init();
+    });
+
+    afterAll(async () => {
+      await rateLimitApp.close();
+    });
+
+    it('should return 429 after exceeding rate limit', async () => {
+      // Exhaust the limit (3 requests)
+      for (let i = 0; i < 3; i++) {
+        await request(rateLimitApp.getHttpServer()).get('/auth/me');
+      }
+
+      // The next request should be rate-limited
+      await request(rateLimitApp.getHttpServer())
+        .get('/auth/me')
+        .expect(429);
+    });
+
+    // NOTE: The rate-limit TTL reset test is not implemented here because
+    // it would require waiting for the TTL window (e.g., 60 seconds) to expire,
+    // making the test impractical for automated e2e suites.
+    // Rate-limit reset behaviour is covered by throttler unit tests or manual QA.
+    it.todo('should reset rate limit after TTL window');
   });
 });
