@@ -354,6 +354,15 @@ describe('Pages (e2e)', () => {
         .get(`/works/${work.id}/pages/1`)
         .expect(200);
     });
+
+    it('should return 400 when page number is not a valid integer', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      return request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/abc`)
+        .expect(400);
+    });
   });
 
   describe('PATCH /pages/:id', () => {
@@ -416,6 +425,26 @@ describe('Pages (e2e)', () => {
         .send({ content: 'hello' })
         .expect(404);
     });
+
+    it('should return 403 when trying to update a pending page', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .patch(`/pages/${pendingPage.body.id}`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Updated content' })
+        .expect(403);
+    });
   });
 
   describe('DELETE /pages/:id', () => {
@@ -473,6 +502,25 @@ describe('Pages (e2e)', () => {
         .delete('/pages/00000000-0000-0000-0000-000000000000')
         .set('Cookie', owner.allCookies)
         .expect(404);
+    });
+
+    it('should return 403 when trying to delete a pending page', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .delete(`/pages/${pendingPage.body.id}`)
+        .set('Cookie', contributor.allCookies)
+        .expect(403);
     });
   });
 
