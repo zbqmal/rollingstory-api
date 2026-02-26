@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
@@ -39,6 +38,7 @@ describe('Pages (e2e)', () => {
   });
 
   afterAll(async () => {
+    await cleanDatabase(prisma);
     await app.close();
   });
 
@@ -75,7 +75,11 @@ describe('Pages (e2e)', () => {
       .set('Cookie', allCookies)
       .send({ content })
       .expect(201);
-    return res.body as { id: string; status: string; pageNumber: number | null };
+    return res.body as {
+      id: string;
+      status: string;
+      pageNumber: number | null;
+    };
   }
 
   describe('POST /works/:workId/pages', () => {
@@ -213,8 +217,9 @@ describe('Pages (e2e)', () => {
         .get(`/works/${work.id}/pages`)
         .expect(200);
 
-      expect(res.body).toHaveLength(2);
-      res.body.forEach((page: { status: string }) => {
+      const pages = res.body as { status: string }[];
+      expect(pages).toHaveLength(2);
+      pages.forEach((page) => {
         expect(page.status).toBe('approved');
       });
     });
@@ -281,8 +286,9 @@ describe('Pages (e2e)', () => {
         .set('Cookie', owner.allCookies)
         .expect(200);
 
-      expect(res.body).toHaveLength(2);
-      res.body.forEach((page: { status: string }) => {
+      const pages = res.body as { status: string }[];
+      expect(pages).toHaveLength(2);
+      pages.forEach((page) => {
         expect(page.status).toBe('pending');
       });
     });
@@ -712,11 +718,14 @@ describe('Pages (e2e)', () => {
         .get(`/works/${work.id}/collaborators`)
         .expect(200);
 
-      const entry = res.body.find(
-        (c: { userId: string }) => c.userId === contributor.userId,
-      );
+      const collaborators = res.body as {
+        userId: string;
+        username: string;
+        pageCount: number;
+      }[];
+      const entry = collaborators.find((c) => c.userId === contributor.userId);
       expect(entry).toBeDefined();
-      expect(entry.pageCount).toBe(2);
+      expect(entry?.pageCount).toBe(2);
       expect(entry).toHaveProperty('userId');
       expect(entry).toHaveProperty('username');
       expect(entry).toHaveProperty('pageCount');
