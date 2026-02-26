@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   ParseIntPipe,
+  HttpCode,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -104,6 +105,7 @@ export class PagesController {
   }
 
   @Post('pages/:id/approve')
+  @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Approve pending page contribution (owner only)' })

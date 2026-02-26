@@ -39,6 +39,7 @@ describe('Works (e2e)', () => {
   });
 
   afterAll(async () => {
+    await cleanDatabase(prisma);
     await app.close();
   });
 
