@@ -10,7 +10,7 @@ import { PrismaService } from '../src/prisma/prisma.service';
 import cookieParser from 'cookie-parser';
 import { cleanDatabase } from './helpers/db.helper';
 import { registerUser, TEST_USER } from './helpers/auth.helper';
-import { isHttpOnly } from './helpers/cookie.helper';
+import { isHttpOnly, isCookieCleared } from './helpers/cookie.helper';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication;
@@ -572,6 +572,59 @@ describe('Auth (e2e)', () => {
           password: TEST_USER.password,
         })
         .expect(401);
+    });
+  });
+
+  describe('DELETE /auth/me', () => {
+    it('should return 401 when not authenticated', () => {
+      return request(app.getHttpServer()).delete('/auth/me').expect(401);
+    });
+
+    it('should delete account and return 200', async () => {
+      const { allCookies } = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(200);
+
+      expect(res.body.message).toBe('Account deleted successfully');
+
+      const setCookieHeader = res.headers['set-cookie'] as string[] | string;
+      expect(isCookieCleared(setCookieHeader, 'access_token')).toBe(true);
+      expect(isCookieCleared(setCookieHeader, 'refresh_token')).toBe(true);
+    });
+
+    it('should return 401 when trying to access /auth/me after account deletion', async () => {
+      const { accessTokenCookie, allCookies } = await registerUser(
+        app,
+        TEST_USER,
+      );
+
+      await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Cookie', accessTokenCookie)
+        .expect(401);
+    });
+
+    it('should return 409 if user has authored works', async () => {
+      const { allCookies } = await registerUser(app, TEST_USER);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', allCookies)
+        .send({ title: 'My Work' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete('/auth/me')
+        .set('Cookie', allCookies)
+        .expect(409);
     });
   });
 });
