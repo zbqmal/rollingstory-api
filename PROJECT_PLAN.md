@@ -10,6 +10,7 @@
 **RollingStory** is a collaborative storytelling platform where users can create and contribute to novels page by page. Think of it as a "choose your own adventure" meets "collaborative writing" platform.
 
 ### Core Concept
+
 - Authors create "Works" (novels/stories)
 - Each work consists of multiple "Pages"
 - Pages have character limits (default: 2000 chars)
@@ -24,6 +25,7 @@
 ### Technology Stack
 
 #### Backend: `rollingstory-api`
+
 - **Framework:** NestJS (TypeScript)
 - **Database:** PostgreSQL
 - **ORM:** Prisma
@@ -33,6 +35,7 @@
 - **Port:** 3001
 
 #### Frontend: `rollingstory-web`
+
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
@@ -54,7 +57,7 @@ User {
   password        String (hashed)
   createdAt       DateTime
   updatedAt       DateTime
-  
+
   // Relations
   authoredWorks   Work[]
   pages           Page[]
@@ -71,7 +74,7 @@ Work {
   allowCollaboration  Boolean (default: true)
   createdAt           DateTime
   updatedAt           DateTime
-  
+
   // Relations
   author              User
   pages               Page[]
@@ -85,11 +88,11 @@ Page {
   content     String (Text)
   pageNumber  Int
   createdAt   DateTime
-  
+
   // Relations
   work        Work
   author      User
-  
+
   // Constraints
   @@unique([workId, pageNumber])
 }
@@ -99,11 +102,11 @@ WorkCollaborator {
   workId     String
   userId     String
   approvedAt DateTime
-  
+
   // Relations
   work       Work
   user       User
-  
+
   // Constraints
   @@unique([workId, userId])
 }
@@ -116,9 +119,11 @@ WorkCollaborator {
 ### ✅ Phase 1: Foundation & Authentication (COMPLETE)
 
 #### Phase 1.1: Backend Setup ✅
+
 **Repository:** `rollingstory-api`
 
 **Implemented:**
+
 - [x] NestJS project initialization
 - [x] Prisma setup with PostgreSQL
 - [x] Database schema design
@@ -133,6 +138,7 @@ WorkCollaborator {
 - [x] Global validation pipe
 
 **Endpoints:**
+
 ```
 POST   /auth/register    - Register new user
 POST   /auth/login       - Login user
@@ -140,9 +146,11 @@ GET    /auth/me          - Get current user (protected)
 ```
 
 #### Phase 1.2: Frontend Setup ✅
+
 **Repository:** `rollingstory-web`
 
 **Implemented:**
+
 - [x] Next.js 15 project initialization
 - [x] TypeScript configuration
 - [x] Tailwind CSS setup
@@ -174,6 +182,7 @@ GET    /auth/me          - Get current user (protected)
   - lib/api.test.ts
 
 **Routes:**
+
 ```
 /                    - Home page (welcome + CTA)
 /login               - Login form
@@ -185,9 +194,11 @@ GET    /auth/me          - Get current user (protected)
 ### ✅ Phase 2: Work Management (COMPLETE)
 
 #### Phase 2.1: Backend - Work CRUD API ✅
+
 **Repository:** `rollingstory-api`
 
 **Implemented:**
+
 - [x] Works module creation
   - `src/works/works.module.ts`
   - `src/works/works.controller.ts`
@@ -211,6 +222,7 @@ GET    /auth/me          - Get current user (protected)
   - `works.e2e-spec.ts`
 
 **Endpoints:**
+
 ```
 POST   /works              - Create new work (protected)
 GET    /works              - List all works (public, paginated)
@@ -223,21 +235,25 @@ DELETE /works/:id          - Delete work (protected, owner only)
 > All endpoints tested and working.
 
 **Authorization Rules:**
+
 - Only authenticated users can create works
 - Only work owners can update/delete their works
 - Anyone can view works (read-only)
 - Deleting a work cascades to pages and collaborators
 
 **Validation:**
+
 - Title: required, 3-200 chars
 - Type: "novel" (default, "comic" future)
 - PageCharLimit: 100-10000 (default: 2000)
 - AllowCollaboration: boolean (default: true)
 
 #### Phase 2.2: Frontend - Work Management UI ✅
+
 **Repository:** `rollingstory-web`
 
 **Implemented:**
+
 - [x] API client extensions (`lib/api.ts`)
   - `api.works.create(dto)`
   - `api.works.getAll(page?, limit?)`
@@ -272,9 +288,11 @@ DELETE /works/:id          - Delete work (protected, owner only)
 ### ✅ Phase 3: Page Management (COMPLETE)
 
 #### Phase 3.1: Backend - Page CRUD API ✅
+
 **Repository:** `rollingstory-api`
 
 **Implemented:**
+
 - [x] Pages module
   - `src/pages/pages.module.ts`
   - `src/pages/pages.controller.ts`
@@ -298,6 +316,7 @@ DELETE /works/:id          - Delete work (protected, owner only)
   - `pages.e2e-spec.ts`
 
 **Endpoints:**
+
 ```
 POST   /works/:workId/pages          - Add new page (owner/collaborator)
 GET    /works/:workId/pages          - List all pages (public)
@@ -309,6 +328,7 @@ DELETE /pages/:id                    - Delete page (author only, reorders)
 ✅ **All endpoints tested and working**
 
 **Business Rules:**
+
 - Only work owner or approved collaborators can create pages
 - Page numbers are automatically assigned sequentially
 - Content must not exceed work's `pageCharLimit`
@@ -316,9 +336,11 @@ DELETE /pages/:id                    - Delete page (author only, reorders)
 - Deleting a page automatically reorders subsequent pages
 
 #### Phase 3.2: Frontend - Page Reading & Writing UI ✅
+
 **Repository:** `rollingstory-web`
 
 **Implemented:**
+
 - [x] API client extensions (`lib/api.ts`)
   - `api.pages.create(workId, dto)`
   - `api.pages.getAll(workId)`
@@ -354,9 +376,11 @@ DELETE /pages/:id                    - Delete page (author only, reorders)
 ### ✅ Phase 4: Page Contribution System (COMPLETE)
 
 #### Phase 4.1: Backend - Page Contribution API ✅
+
 **Repository:** `rollingstory-api`
 
 **Implemented:**
+
 - [x] Database migration - Added `status` field to `Page` model
 - [x] Added `approvedAt` timestamp field
 - [x] Made `pageNumber` nullable (assigned only when approved)
@@ -377,6 +401,7 @@ DELETE /pages/:id                    - Delete page (author only, reorders)
   - Updated `pages.e2e-spec.ts`
 
 **Endpoints:**
+
 ```
 POST   /works/:workId/pages          - Submit page (owner: approved, contributor: pending)
 GET    /works/:workId/pages          - List approved pages only (public)
@@ -391,6 +416,7 @@ DELETE /pages/:id                    - Delete page (author only)
 ✅ **All endpoints tested and working**
 
 **Business Rules:**
+
 - Any authenticated user can submit page contributions to collaborative works
 - Work owner's pages are immediately approved with page number
 - Non-owner submissions start as `status = "pending"` with `pageNumber = null`
@@ -405,9 +431,11 @@ DELETE /pages/:id                    - Delete page (author only)
 ### 📝 Phase 5: Documentation Updates
 
 #### Phase 5.1: Update PROJECT_PLAN.md Files ✅
+
 **Repository:** Both `rollingstory-api` and `rollingstory-web`
 
 **Completed:**
+
 - [x] Updated status to reflect Phase 4 completion
 - [x] Documented Phase 4 implementation details
 - [x] Added Phase 5, 6, and 7 planning
@@ -420,9 +448,11 @@ DELETE /pages/:id                    - Delete page (author only)
 **Note:** All Phase 6 changes are frontend-only in `rollingstory-web` repository. No backend changes needed.
 
 #### Phase 6.1: Color Scheme & Background Redesign 📋
+
 **Repository:** `rollingstory-web`
 
 **To Implement:**
+
 - [ ] Change background from black to white/light gray
 - [ ] Update content cards with subtle borders
 - [ ] Add proper shadows for depth
@@ -430,9 +460,11 @@ DELETE /pages/:id                    - Delete page (author only)
 - [ ] Update global color palette in Tailwind config
 
 #### Phase 6.2: Typography & Contrast Enhancement 📋
+
 **Repository:** `rollingstory-web`
 
 **To Implement:**
+
 - [ ] Improve text contrast ratios (WCAG AA compliant)
 - [ ] Fix faint text colors (placeholders, labels, inputs)
 - [ ] Update input field text colors for readability
@@ -441,9 +473,11 @@ DELETE /pages/:id                    - Delete page (author only)
 - [ ] Fix form field placeholders
 
 #### Phase 6.3: Rename "Work" to "Story" (Frontend Only) 📋
+
 **Repository:** `rollingstory-web`
 
 **To Implement:**
+
 - [ ] Rename all "Work" references to "Story" in UI text
 - [ ] Update route names (`/works` → `/stories`)
 - [ ] Update component names (WorkCard → StoryCard, etc.)
@@ -457,9 +491,11 @@ DELETE /pages/:id                    - Delete page (author only)
 ### 🚀 Phase 7: Behavior Enhancements
 
 #### Phase 7.1: Homepage Redesign - Show All Stories 📋
+
 **Repository:** `rollingstory-web`
 
 **To Implement:**
+
 - [ ] Remove "Welcome to Rolling Story" landing page
 - [ ] Make homepage (`/`) show all published stories
 - [ ] Allow non-registered users to browse and read stories
@@ -471,12 +507,14 @@ DELETE /pages/:id                    - Delete page (author only)
 #### Phase 7.2: Add Collaborators Section to Story Detail Page 📋
 
 **Backend Changes (rollingstory-api):**
+
 - [ ] Add/enhance endpoint: `GET /works/:id/collaborators`
 - [ ] Return list of contributors with page counts
 - [ ] Include only users with approved pages
 - [ ] Sort by page count (descending), then alphabetically
 
 **Frontend Changes (rollingstory-web):**
+
 - [ ] Add "Collaborators" section on story detail page
 - [ ] Fetch and display contributor list
 - [ ] Show max 5 collaborators, truncate with "..." if more
@@ -488,21 +526,27 @@ DELETE /pages/:id                    - Delete page (author only)
 ### 🔍 Phase 8: Discovery & Polish
 
 #### Phase 8.1: Search & Discovery 📋
+
 **To Implement:**
+
 - [ ] Search works by title/description
 - [ ] Filter by type (novel/comic)
 - [ ] Sort by popularity, recent, etc.
 - [ ] Work categories/tags (optional)
 
 #### Phase 8.2: User Profiles 📋
+
 **To Implement:**
+
 - [ ] Public user profile page
 - [ ] User's published works
 - [ ] User's contributed pages
 - [ ] Bio and profile picture (optional)
 
 #### Phase 8.3: Polish & Features 📋
+
 **To Implement:**
+
 - [ ] Dark mode
 - [ ] Mobile responsiveness improvements
 - [ ] SEO optimization
@@ -516,18 +560,21 @@ DELETE /pages/:id                    - Delete page (author only)
 ## 🔐 Security Considerations
 
 ### Authentication
+
 - JWT tokens stored in localStorage (key: "tk")
 - Tokens expire after 7 days
 - Passwords hashed with bcrypt (10 rounds)
 - No password in API responses
 
 ### Authorization
+
 - JWT guard protects all authenticated routes
 - Owner-only checks for update/delete operations
 - Collaborator checks for page creation
 - Input validation on all DTOs
 
 ### Best Practices
+
 - CORS enabled for frontend origin
 - Global validation pipe (whitelist, forbidNonWhitelisted)
 - Error messages don't leak sensitive info
@@ -538,12 +585,14 @@ DELETE /pages/:id                    - Delete page (author only)
 ## 🧪 Testing Strategy
 
 ### Backend Tests
+
 - **Unit Tests:** All services and controllers
 - **E2E Tests:** All endpoint flows
 - **Test Database:** Separate test DB, cleaned between tests
 - **Coverage Goal:** >80%
 
 ### Frontend Tests
+
 - **Unit Tests:** Utility functions, hooks, components
 - **Integration Tests:** API client
 - **E2E Tests:** Critical user flows (optional, Playwright)
@@ -554,13 +603,16 @@ DELETE /pages/:id                    - Delete page (author only)
 ## 📦 Deployment Strategy
 
 ### Backend (`rollingstory-api`)
+
 **Recommended Platforms:**
+
 - Railway
 - Render
 - Heroku
 - AWS/GCP/Azure
 
 **Environment Variables:**
+
 ```bash
 DATABASE_URL=postgresql://...
 JWT_SECRET=your-secret-key
@@ -569,6 +621,7 @@ NODE_ENV=production
 ```
 
 **Deployment Steps:**
+
 1. Push to GitHub
 2. Connect to platform
 3. Set environment variables
@@ -576,17 +629,21 @@ NODE_ENV=production
 5. Run migrations: `yarn prisma migrate deploy`
 
 ### Frontend (`rollingstory-web`)
+
 **Recommended Platforms:**
+
 - Vercel (recommended for Next.js)
 - Netlify
 - Railway
 
 **Environment Variables:**
+
 ```bash
 NEXT_PUBLIC_API_URL=https://your-api.com
 ```
 
 **Deployment Steps:**
+
 1. Push to GitHub
 2. Connect to Vercel
 3. Set environment variable
@@ -599,30 +656,32 @@ NEXT_PUBLIC_API_URL=https://your-api.com
 ### For Each Phase:
 
 1. **Backend First (API)**
+
    ```bash
    # Create PR via Copilot
    "Create a PR for Phase X.1: [Feature] in rollingstory-api"
-   
+
    # Manual testing
    cd rollingstory-api
    yarn start:dev
    # Test endpoints with Postman/Insomnia
    yarn test
-   
+
    # Review, merge PR
    ```
 
 2. **Frontend Second (UI)**
+
    ```bash
    # Create PR via Copilot
    "Create a PR for Phase X.2: [Feature] in rollingstory-web"
-   
+
    # Manual testing
    cd rollingstory-web
    yarn dev
    # Test UI flows manually
    yarn test
-   
+
    # Review, merge PR
    ```
 
@@ -637,17 +696,22 @@ NEXT_PUBLIC_API_URL=https://your-api.com
 ## 📝 API Documentation
 
 ### Base URL
+
 - Development: `http://localhost:3001`
 - Production: `https://api.rollingstory.com` (TBD)
 
 ### Authentication
+
 All protected endpoints require JWT token in header:
+
 ```
 Authorization: Bearer <token>
 ```
 
 ### Response Format
+
 All API responses follow this structure:
+
 ```json
 {
   "data": {},
@@ -657,6 +721,7 @@ All API responses follow this structure:
 ```
 
 ### Error Format
+
 ```json
 {
   "statusCode": 400,
@@ -670,6 +735,7 @@ All API responses follow this structure:
 ## 🤝 Contributing
 
 ### Setup
+
 1. Clone both repositories
 2. Set up environment variables
 3. Install dependencies: `yarn install`
@@ -677,12 +743,14 @@ All API responses follow this structure:
 5. Start dev servers
 
 ### Code Style
+
 - Follow existing patterns
 - Run linters before commit
 - Write tests for new features
 - Keep commits atomic and descriptive
 
 ### Pull Request Process
+
 1. Create feature branch from `main`
 2. Implement changes with tests
 3. Run full test suite

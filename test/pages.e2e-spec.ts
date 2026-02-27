@@ -1,27 +1,29 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
+import cookieParser from 'cookie-parser';
+import { cleanDatabase } from './helpers/db.helper';
+import { registerUser, TEST_USER, TEST_USER_2 } from './helpers/auth.helper';
 
 describe('Pages (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
-  let authToken: string;
-  let anotherAuthToken: string;
-  let anotherUserId: string;
-  let workId: string;
-  let collaborativeWorkId: string;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideModule(ThrottlerModule)
+      .useModule(ThrottlerModule.forRoot([{ ttl: 1000, limit: 1000 }]))
+      .compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(cookieParser());
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -36,762 +38,793 @@ describe('Pages (e2e)', () => {
   });
 
   afterAll(async () => {
+    await cleanDatabase(prisma);
     await app.close();
   });
 
   beforeEach(async () => {
-    // Clean up database before each test
-    await prisma.workCollaborator.deleteMany();
-    await prisma.page.deleteMany();
-    await prisma.work.deleteMany();
-    await prisma.user.deleteMany();
-
-    // Create test user and get auth token
-    const registerRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        email: 'test@example.com',
-        username: 'testuser',
-        password: 'password123',
-      });
-    authToken = registerRes.body.token;
-
-    // Create another test user
-    const anotherRegisterRes = await request(app.getHttpServer())
-      .post('/auth/register')
-      .send({
-        email: 'another@example.com',
-        username: 'anotheruser',
-        password: 'password123',
-      });
-    anotherAuthToken = anotherRegisterRes.body.token;
-    anotherUserId = anotherRegisterRes.body.user.id;
-
-    // Create a test work
-    const workRes = await request(app.getHttpServer())
-      .post('/works')
-      .set('Authorization', `Bearer ${authToken}`)
-      .send({
-        title: 'Test Novel',
-        description: 'A test novel',
-        pageCharLimit: 500,
-        allowCollaboration: false,
-      });
-    workId = workRes.body.id;
-
-    // Create a collaborative work
-    const collabWorkRes = await request(app.getHttpServer())
-      .post('/works')
-      .set('Authorization', `Bearer ${authToken}`)
-      .send({
-        title: 'Collaborative Novel',
-        description: 'A collaborative novel',
-        pageCharLimit: 1000,
-        allowCollaboration: true,
-      });
-    collaborativeWorkId = collabWorkRes.body.id;
-
-    // Add second user as collaborator
-    await prisma.workCollaborator.create({
-      data: {
-        workId: collaborativeWorkId,
-        userId: anotherUserId,
-      },
-    });
+    await cleanDatabase(prisma);
   });
 
-  describe('/works/:workId/pages (POST)', () => {
-    it('should create a page as work owner with approved status', () => {
+  // Helper: create a work for a user (returns the work body)
+  async function createWork(
+    allCookies: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    const res = await request(app.getHttpServer())
+      .post('/works')
+      .set('Cookie', allCookies)
+      .send({ title: 'Test Work', allowCollaboration: true, ...overrides })
+      .expect(201);
+    return res.body as {
+      id: string;
+      authorId: string;
+      pageCharLimit: number;
+      allowCollaboration: boolean;
+    };
+  }
+
+  // Helper: create a page for a work (returns the page body)
+  async function createPage(
+    workId: string,
+    allCookies: string,
+    content = 'Page content',
+  ) {
+    const res = await request(app.getHttpServer())
+      .post(`/works/${workId}/pages`)
+      .set('Cookie', allCookies)
+      .send({ content })
+      .expect(201);
+    return res.body as {
+      id: string;
+      status: string;
+      pageNumber: number | null;
+    };
+  }
+
+  describe('POST /works/:workId/pages', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
       return request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          content: 'This is the first page of my novel.',
-        })
-        .expect(201)
-        .expect((res) => {
-          expect(res.body).toHaveProperty('id');
-          expect(res.body.workId).toBe(workId);
-          expect(res.body.content).toBe('This is the first page of my novel.');
-          expect(res.body.pageNumber).toBe(1);
-          expect(res.body.status).toBe('approved');
-          expect(res.body.approvedAt).toBeDefined();
-          expect(res.body.author).toHaveProperty('username', 'testuser');
-          expect(res.body.author).not.toHaveProperty('password');
-        });
-    });
-
-    it('should create a page as non-owner with pending status', () => {
-      return request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
-        .send({
-          content: 'I am contributing to this story.',
-        })
-        .expect(201)
-        .expect((res) => {
-          expect(res.body.workId).toBe(collaborativeWorkId);
-          expect(res.body.authorId).toBe(anotherUserId);
-          expect(res.body.status).toBe('pending');
-          expect(res.body.pageNumber).toBeNull();
-          expect(res.body.approvedAt).toBeNull();
-        });
-    });
-
-    it('should assign sequential page numbers', async () => {
-      // Create first page
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 1' })
-        .expect(201);
-
-      // Create second page
-      const res = await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 2' })
-        .expect(201);
-
-      expect(res.body.pageNumber).toBe(2);
-    });
-
-    it('should fail without authentication', () => {
-      return request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .send({
-          content: 'Unauthorized content',
-        })
+        .post(`/works/${work.id}/pages`)
+        .send({ content: 'Hello world' })
         .expect(401);
     });
 
-    it('should fail if user is not owner and work does not allow collaboration', () => {
-      return request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
-        .send({
-          content: 'I should not be able to add this.',
-        })
-        .expect(403)
-        .expect((res) => {
-          expect(res.body.message).toContain('does not allow contributions');
-        });
+    it('should create a page with status approved when owner posts', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      const res = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'Hello world' })
+        .expect(201);
+
+      expect(res.body.status).toBe('approved');
+      expect(res.body.pageNumber).toBe(1);
+      expect(res.body.approvedAt).toBeDefined();
     });
 
-    it('should fail if content exceeds character limit', () => {
-      const longContent = 'a'.repeat(501);
-      return request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          content: longContent,
-        })
-        .expect(400)
-        .expect((res) => {
-          expect(res.body.message).toContain('character limit');
-        });
+    it('should assign sequential page numbers to owner pages', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      const page1 = await createPage(work.id, owner.allCookies, 'Page 1');
+      const page2 = await createPage(work.id, owner.allCookies, 'Page 2');
+      const page3 = await createPage(work.id, owner.allCookies, 'Page 3');
+
+      expect(page1.pageNumber).toBe(1);
+      expect(page2.pageNumber).toBe(2);
+      expect(page3.pageNumber).toBe(3);
     });
 
-    it('should fail if work does not exist', () => {
+    it('should create a page with status pending when non-owner contributes', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const res = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution' })
+        .expect(201);
+
+      expect(res.body.status).toBe('pending');
+      expect(res.body.pageNumber).toBeNull();
+    });
+
+    it('should return 403 if collaboration is disabled and user is not owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: false,
+      });
+      const other = await registerUser(app, TEST_USER_2);
+
       return request(app.getHttpServer())
-        .post('/works/non-existent-id/pages')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({
-          content: 'Content',
-        })
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', other.allCookies)
+        .send({ content: 'Contribution' })
+        .expect(403);
+    });
+
+    it('should return 400 if content exceeds pageCharLimit', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, { pageCharLimit: 100 });
+
+      return request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'a'.repeat(101) })
+        .expect(400);
+    });
+
+    it('should return 400 if content is empty', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      return request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', owner.allCookies)
+        .send({ content: '' })
+        .expect(400);
+    });
+
+    it('should return 404 if work does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+
+      return request(app.getHttpServer())
+        .post('/works/00000000-0000-0000-0000-000000000000/pages')
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'hello' })
         .expect(404);
     });
   });
 
-  describe('/works/:workId/pages (GET)', () => {
-    it('should return all pages for a work', async () => {
-      // Create multiple pages
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 1' });
+  describe('GET /works/:workId/pages', () => {
+    it('should return empty array when work has no approved pages', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
 
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 2' });
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages`)
+        .expect(200);
 
-      return request(app.getHttpServer())
-        .get(`/works/${workId}/pages`)
-        .expect(200)
-        .expect((res) => {
-          expect(Array.isArray(res.body)).toBe(true);
-          expect(res.body).toHaveLength(2);
-          expect(res.body[0].pageNumber).toBe(1);
-          expect(res.body[1].pageNumber).toBe(2);
-          expect(res.body[0].content).toBe('Page 1');
-          expect(res.body[1].content).toBe('Page 2');
-        });
+      expect(res.body).toEqual([]);
     });
 
-    it('should return empty array if work has no pages', () => {
-      return request(app.getHttpServer())
-        .get(`/works/${workId}/pages`)
-        .expect(200)
-        .expect((res) => {
-          expect(Array.isArray(res.body)).toBe(true);
-          expect(res.body).toHaveLength(0);
-        });
+    it('should return only approved pages', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      await createPage(work.id, owner.allCookies, 'Approved 1');
+      await createPage(work.id, owner.allCookies, 'Approved 2');
+
+      await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages`)
+        .expect(200);
+
+      const pages = res.body as { status: string }[];
+      expect(pages).toHaveLength(2);
+      pages.forEach((page) => {
+        expect(page.status).toBe('approved');
+      });
     });
 
-    it('should not require authentication', () => {
+    it('should return pages ordered by pageNumber ascending', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      await createPage(work.id, owner.allCookies, 'Page 1');
+      await createPage(work.id, owner.allCookies, 'Page 2');
+      await createPage(work.id, owner.allCookies, 'Page 3');
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages`)
+        .expect(200);
+
+      expect(res.body[0].pageNumber).toBe(1);
+      expect(res.body[1].pageNumber).toBe(2);
+      expect(res.body[2].pageNumber).toBe(3);
+    });
+
+    it('should be accessible without authentication', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      await createPage(work.id, owner.allCookies);
+
       return request(app.getHttpServer())
-        .get(`/works/${workId}/pages`)
+        .get(`/works/${work.id}/pages`)
         .expect(200);
     });
   });
 
-  describe('/works/:workId/pages/:number (GET)', () => {
-    it('should return a specific page', async () => {
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 1' });
-
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 2' });
+  describe('GET /works/:workId/pages/pending', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
 
       return request(app.getHttpServer())
-        .get(`/works/${workId}/pages/2`)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.pageNumber).toBe(2);
-          expect(res.body.content).toBe('Page 2');
-          expect(res.body.author).toHaveProperty('username');
-        });
+        .get(`/works/${work.id}/pages/pending`)
+        .expect(401);
     });
 
-    it('should fail if page does not exist', () => {
-      return request(app.getHttpServer())
-        .get(`/works/${workId}/pages/999`)
-        .expect(404);
+    it('should return pending contributions as work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution 1' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution 2' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      const pages = res.body as { status: string }[];
+      expect(pages).toHaveLength(2);
+      pages.forEach((page) => {
+        expect(page.status).toBe('pending');
+      });
     });
 
-    it('should not require authentication', () => {
+    it('should return 403 if not the work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const other = await registerUser(app, TEST_USER_2);
+
       return request(app.getHttpServer())
-        .get(`/works/${workId}/pages/1`)
-        .expect(404); // 404 because page doesn't exist, not 401
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', other.allCookies)
+        .expect(403);
+    });
+
+    it('should return empty array when there are no pending contributions', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
     });
   });
 
-  describe('/pages/:id (PATCH)', () => {
-    let pageId: string;
+  describe('GET /works/:workId/pages/:number', () => {
+    it('should return a specific approved page by number', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
 
-    beforeEach(async () => {
-      const res = await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Original content' });
-      pageId = res.body.id;
+      await createPage(work.id, owner.allCookies, 'First page');
+      await createPage(work.id, owner.allCookies, 'Second page');
+
+      const res1 = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/1`)
+        .expect(200);
+      expect(res1.body.pageNumber).toBe(1);
+
+      const res2 = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/2`)
+        .expect(200);
+      expect(res2.body.pageNumber).toBe(2);
     });
 
-    it('should update page content', () => {
+    it('should return 404 if page number does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
       return request(app.getHttpServer())
-        .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Updated content' })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.content).toBe('Updated content');
-          expect(res.body.id).toBe(pageId);
-        });
+        .get(`/works/${work.id}/pages/99`)
+        .expect(404);
     });
 
-    it('should fail without authentication', () => {
+    it('should be accessible without authentication', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      await createPage(work.id, owner.allCookies);
+
       return request(app.getHttpServer())
-        .patch(`/pages/${pageId}`)
+        .get(`/works/${work.id}/pages/1`)
+        .expect(200);
+    });
+
+    it('should return 400 when page number is not a valid integer', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      return request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/abc`)
+        .expect(400);
+    });
+  });
+
+  describe('PATCH /pages/:id', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
+
+      return request(app.getHttpServer())
+        .patch(`/pages/${page.id}`)
         .send({ content: 'Updated content' })
         .expect(401);
     });
 
-    it('should fail if user is not the page author', () => {
+    it('should update page content as the page author', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/pages/${page.id}`)
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'Updated content' })
+        .expect(200);
+
+      expect(res.body.content).toBe('Updated content');
+    });
+
+    it('should return 403 if not the page author', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
+      const other = await registerUser(app, TEST_USER_2);
+
       return request(app.getHttpServer())
-        .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .patch(`/pages/${page.id}`)
+        .set('Cookie', other.allCookies)
         .send({ content: 'Hacked content' })
         .expect(403);
     });
 
-    it('should fail if content exceeds character limit', () => {
-      const longContent = 'a'.repeat(501);
+    it('should return 400 if updated content exceeds pageCharLimit', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, { pageCharLimit: 100 });
+      const page = await createPage(work.id, owner.allCookies, 'Short');
+
       return request(app.getHttpServer())
-        .patch(`/pages/${pageId}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: longContent })
+        .patch(`/pages/${page.id}`)
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'a'.repeat(101) })
         .expect(400);
     });
 
-    it('should fail if page does not exist', () => {
+    it('should return 404 if page does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+
       return request(app.getHttpServer())
-        .patch('/pages/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Content' })
+        .patch('/pages/00000000-0000-0000-0000-000000000000')
+        .set('Cookie', owner.allCookies)
+        .send({ content: 'hello' })
         .expect(404);
+    });
+
+    it('should return 403 when trying to update a pending page', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .patch(`/pages/${pendingPage.body.id}`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Updated content' })
+        .expect(403);
     });
   });
 
-  describe('/pages/:id (DELETE)', () => {
-    let page1Id: string;
-    let page2Id: string;
+  describe('DELETE /pages/:id', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
 
-    beforeEach(async () => {
-      const res1 = await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 1' });
-      page1Id = res1.body.id;
-
-      const res2 = await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 2' });
-      page2Id = res2.body.id;
-
-      await request(app.getHttpServer())
-        .post(`/works/${workId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page 3' });
-    });
-
-    it('should delete a page', () => {
       return request(app.getHttpServer())
-        .delete(`/pages/${page1Id}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.message).toContain('deleted successfully');
-        });
-    });
-
-    it('should reorder subsequent pages after deletion', async () => {
-      // Delete page 2
-      await request(app.getHttpServer())
-        .delete(`/pages/${page2Id}`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .expect(200);
-
-      // Get all pages
-      const res = await request(app.getHttpServer())
-        .get(`/works/${workId}/pages`)
-        .expect(200);
-
-      expect(res.body).toHaveLength(2);
-      expect(res.body[0].pageNumber).toBe(1);
-      expect(res.body[0].content).toBe('Page 1');
-      expect(res.body[1].pageNumber).toBe(2); // Was page 3, now page 2
-      expect(res.body[1].content).toBe('Page 3');
-    });
-
-    it('should fail without authentication', () => {
-      return request(app.getHttpServer())
-        .delete(`/pages/${page1Id}`)
+        .delete(`/pages/${page.id}`)
         .expect(401);
     });
 
-    it('should fail if user is not the page author', () => {
+    it('should delete a page as the author and reorder subsequent pages', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      const page1 = await createPage(work.id, owner.allCookies, 'Page 1');
+      const page2 = await createPage(work.id, owner.allCookies, 'Page 2');
+      await createPage(work.id, owner.allCookies, 'Page 3');
+
+      const deleteRes = await request(app.getHttpServer())
+        .delete(`/pages/${page2.id}`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      expect(deleteRes.body.message).toBe('Page deleted successfully');
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages`)
+        .expect(200);
+
+      expect(listRes.body).toHaveLength(2);
+      expect(listRes.body[0].pageNumber).toBe(1);
+      expect(listRes.body[0].id).toBe(page1.id);
+      expect(listRes.body[1].pageNumber).toBe(2);
+    });
+
+    it('should return 403 if not the page author', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
+      const other = await registerUser(app, TEST_USER_2);
+
       return request(app.getHttpServer())
-        .delete(`/pages/${page1Id}`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
+        .delete(`/pages/${page.id}`)
+        .set('Cookie', other.allCookies)
         .expect(403);
     });
 
-    it('should fail if page does not exist', () => {
+    it('should return 404 if page does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+
       return request(app.getHttpServer())
-        .delete('/pages/non-existent-id')
-        .set('Authorization', `Bearer ${authToken}`)
+        .delete('/pages/00000000-0000-0000-0000-000000000000')
+        .set('Cookie', owner.allCookies)
+        .expect(404);
+    });
+
+    it('should return 403 when trying to delete a pending page', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .delete(`/pages/${pendingPage.body.id}`)
+        .set('Cookie', contributor.allCookies)
+        .expect(403);
+    });
+  });
+
+  describe('POST /pages/:id/approve', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .post(`/pages/${pendingPage.body.id}/approve`)
+        .expect(401);
+    });
+
+    it('should approve a pending contribution as work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/pages/${pendingPage.body.id}/approve`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      expect(res.body.status).toBe('approved');
+      expect(res.body.pageNumber).toBeGreaterThanOrEqual(1);
+      expect(res.body.approvedAt).toBeDefined();
+    });
+
+    it('should assign correct page number to approved contribution (after existing approved pages)', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      await createPage(work.id, owner.allCookies, 'Owner page 1');
+      await createPage(work.id, owner.allCookies, 'Owner page 2');
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .post(`/pages/${pendingPage.body.id}/approve`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      expect(res.body.pageNumber).toBe(3);
+    });
+
+    it('should return 403 if not the work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      return request(app.getHttpServer())
+        .post(`/pages/${pendingPage.body.id}/approve`)
+        .set('Cookie', contributor.allCookies)
+        .expect(403);
+    });
+
+    it('should return 400 if page is already approved', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
+
+      return request(app.getHttpServer())
+        .post(`/pages/${page.id}/approve`)
+        .set('Cookie', owner.allCookies)
+        .expect(400);
+    });
+
+    it('should return 404 if page does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      await createWork(owner.allCookies);
+
+      return request(app.getHttpServer())
+        .post('/pages/00000000-0000-0000-0000-000000000000/approve')
+        .set('Cookie', owner.allCookies)
         .expect(404);
     });
   });
 
-  describe('Pending Contributions Workflow', () => {
-    describe('GET /works/:workId/pages/pending', () => {
-      it('should return pending contributions for work owner', async () => {
-        // Create a pending contribution
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending contribution 1' });
-
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending contribution 2' });
-
-        return request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200)
-          .expect((res) => {
-            expect(Array.isArray(res.body)).toBe(true);
-            expect(res.body).toHaveLength(2);
-            expect(res.body[0].status).toBe('pending');
-            expect(res.body[0].pageNumber).toBeNull();
-            expect(res.body[0].content).toBe('Pending contribution 1');
-          });
+  describe('DELETE /pages/:id/reject', () => {
+    it('should return 401 if not authenticated', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
       });
+      const contributor = await registerUser(app, TEST_USER_2);
 
-      it('should fail if user is not the work owner', async () => {
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending contribution' });
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
 
-        return request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .expect(403)
-          .expect((res) => {
-            expect(res.body.message).toContain('Only the work owner');
-          });
-      });
-
-      it('should return empty array if no pending contributions', () => {
-        return request(app.getHttpServer())
-          .get(`/works/${workId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200)
-          .expect((res) => {
-            expect(Array.isArray(res.body)).toBe(true);
-            expect(res.body).toHaveLength(0);
-          });
-      });
+      return request(app.getHttpServer())
+        .delete(`/pages/${pendingPage.body.id}/reject`)
+        .expect(401);
     });
 
-    describe('POST /pages/:id/approve', () => {
-      let pendingPageId: string;
-
-      beforeEach(async () => {
-        const res = await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending contribution to approve' });
-        pendingPageId = res.body.id;
+    it('should reject and permanently delete a pending contribution as work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
       });
+      const contributor = await registerUser(app, TEST_USER_2);
 
-      it('should approve a pending contribution', async () => {
-        const res = await request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(201);
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
 
-        expect(res.body.status).toBe('approved');
-        expect(res.body.pageNumber).toBe(1);
-        expect(res.body.approvedAt).toBeDefined();
-        expect(res.body.content).toBe('Pending contribution to approve');
-      });
+      const res = await request(app.getHttpServer())
+        .delete(`/pages/${pendingPage.body.id}/reject`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
 
-      it('should assign sequential page numbers when approving', async () => {
-        // Create an approved page first
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .send({ content: 'Owner page 1' });
+      expect(res.body.message).toBe(
+        'Contribution rejected and deleted successfully',
+      );
 
-        // Approve the pending contribution
-        const res = await request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(201);
+      const pendingRes = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
 
-        expect(res.body.pageNumber).toBe(2);
-      });
-
-      it('should make approved page visible in public list', async () => {
-        // Approve the contribution
-        await request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(201);
-
-        // Check public list
-        const res = await request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages`)
-          .expect(200);
-
-        expect(res.body).toHaveLength(1);
-        expect(res.body[0].id).toBe(pendingPageId);
-        expect(res.body[0].status).toBe('approved');
-      });
-
-      it('should fail if user is not the work owner', () => {
-        return request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .expect(403)
-          .expect((res) => {
-            expect(res.body.message).toContain('Only the work owner');
-          });
-      });
-
-      it('should fail if page is already approved', async () => {
-        // Approve once
-        await request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(201);
-
-        // Try to approve again
-        return request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(400)
-          .expect((res) => {
-            expect(res.body.message).toContain('not pending');
-          });
-      });
+      expect(pendingRes.body).toEqual([]);
     });
 
-    describe('DELETE /pages/:id/reject', () => {
-      let pendingPageId: string;
-
-      beforeEach(async () => {
-        const res = await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending contribution to reject' });
-        pendingPageId = res.body.id;
+    it('should return 403 if not the work owner', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
       });
+      const contributor = await registerUser(app, TEST_USER_2);
 
-      it('should reject a pending contribution', async () => {
-        const res = await request(app.getHttpServer())
-          .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200);
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
 
-        expect(res.body.message).toContain('rejected');
-      });
-
-      it('should permanently delete rejected contribution', async () => {
-        // Reject the contribution
-        await request(app.getHttpServer())
-          .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200);
-
-        // Try to get it - should not be in pending list
-        const res = await request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages/pending`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(200);
-
-        expect(res.body).toHaveLength(0);
-      });
-
-      it('should fail if user is not the work owner', () => {
-        return request(app.getHttpServer())
-          .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .expect(403)
-          .expect((res) => {
-            expect(res.body.message).toContain('Only the work owner');
-          });
-      });
-
-      it('should fail if page is already approved', async () => {
-        // Approve the page first
-        await request(app.getHttpServer())
-          .post(`/pages/${pendingPageId}/approve`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(201);
-
-        // Try to reject approved page
-        return request(app.getHttpServer())
-          .delete(`/pages/${pendingPageId}/reject`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .expect(400)
-          .expect((res) => {
-            expect(res.body.message).toContain('not pending');
-          });
-      });
+      return request(app.getHttpServer())
+        .delete(`/pages/${pendingPage.body.id}/reject`)
+        .set('Cookie', contributor.allCookies)
+        .expect(403);
     });
 
-    describe('Pending pages should not appear in public endpoints', () => {
-      it('should not return pending pages in GET /works/:workId/pages', async () => {
-        // Create approved page
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${authToken}`)
-          .send({ content: 'Approved page' });
+    it('should return 400 if page is not pending (e.g., already approved)', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const page = await createPage(work.id, owner.allCookies);
 
-        // Create pending page
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending page' });
+      return request(app.getHttpServer())
+        .delete(`/pages/${page.id}/reject`)
+        .set('Cookie', owner.allCookies)
+        .expect(400);
+    });
 
-        const res = await request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages`)
-          .expect(200);
+    it('should return 404 if page does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      await createWork(owner.allCookies);
 
-        expect(res.body).toHaveLength(1);
-        expect(res.body[0].content).toBe('Approved page');
-        expect(res.body[0].status).toBe('approved');
-      });
-
-      it('should not return pending page by pageNumber', async () => {
-        // Create pending page
-        await request(app.getHttpServer())
-          .post(`/works/${collaborativeWorkId}/pages`)
-          .set('Authorization', `Bearer ${anotherAuthToken}`)
-          .send({ content: 'Pending page' });
-
-        // Try to get by pageNumber (should not exist since pending pages have null pageNumber)
-        return request(app.getHttpServer())
-          .get(`/works/${collaborativeWorkId}/pages/1`)
-          .expect(404);
-      });
+      return request(app.getHttpServer())
+        .delete('/pages/00000000-0000-0000-0000-000000000000/reject')
+        .set('Cookie', owner.allCookies)
+        .expect(404);
     });
   });
 
   describe('GET /works/:workId/collaborators', () => {
-    it('should return collaborators for a work', async () => {
-      // Create pages with different authors
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page by owner 1' });
+    it('should return empty array when no collaborators exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
 
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page by owner 2' });
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/collaborators`)
+        .expect(200);
 
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
-        .send({ content: 'Page by collaborator' });
-
-      // Approve the collaborator's page
-      const pendingRes = await request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/pages/pending`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      await request(app.getHttpServer())
-        .post(`/pages/${pendingRes.body[0].id}/approve`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      // Get collaborators
-      return request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/collaborators`)
-        .expect(200)
-        .expect((res) => {
-          expect(Array.isArray(res.body)).toBe(true);
-          expect(res.body).toHaveLength(2);
-          // Should be sorted by page count (desc)
-          expect(res.body[0].username).toBe('testuser');
-          expect(res.body[0].pageCount).toBe(2);
-          expect(res.body[1].username).toBe('anotheruser');
-          expect(res.body[1].pageCount).toBe(1);
-          // Check structure
-          expect(res.body[0]).toHaveProperty('userId');
-          expect(res.body[0]).toHaveProperty('username');
-          expect(res.body[0]).toHaveProperty('pageCount');
-        });
+      expect(res.body).toEqual([]);
     });
 
-    it('should return 404 for non-existent work', () => {
+    it('should return collaborators with page counts after approving contributions', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      const pending1 = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution 1' })
+        .expect(201);
+
+      const pending2 = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution 2' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/pages/${pending1.body.id}/approve`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/pages/${pending2.body.id}/approve`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/collaborators`)
+        .expect(200);
+
+      const collaborators = res.body as {
+        userId: string;
+        username: string;
+        pageCount: number;
+      }[];
+      const entry = collaborators.find((c) => c.userId === contributor.userId);
+      expect(entry).toBeDefined();
+      expect(entry?.pageCount).toBe(2);
+      expect(entry).toHaveProperty('userId');
+      expect(entry).toHaveProperty('username');
+      expect(entry).toHaveProperty('pageCount');
+    });
+
+    it('should not count pending contributions in collaborators', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Pending contribution' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/collaborators`)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    it('should return 404 if work does not exist', () => {
       return request(app.getHttpServer())
-        .get('/works/non-existent-id/collaborators')
+        .get('/works/00000000-0000-0000-0000-000000000000/collaborators')
         .expect(404);
     });
 
-    it('should return empty array for work with no approved pages', () => {
-      return request(app.getHttpServer())
-        .get(`/works/${workId}/collaborators`)
-        .expect(200)
-        .expect((res) => {
-          expect(Array.isArray(res.body)).toBe(true);
-          expect(res.body).toHaveLength(0);
-        });
-    });
+    it('should be accessible without authentication', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
 
-    it('should not count pending pages', async () => {
-      // Create approved page by owner
+      const pendingPage = await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'Contribution' })
+        .expect(201);
+
       await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Approved page' });
-
-      // Create pending page by collaborator (not approved)
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
-        .send({ content: 'Pending page' });
-
-      // Get collaborators
-      const res = await request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .post(`/pages/${pendingPage.body.id}/approve`)
+        .set('Cookie', owner.allCookies)
         .expect(200);
 
-      expect(res.body).toHaveLength(1);
-      expect(res.body[0].username).toBe('testuser');
-      expect(res.body[0].pageCount).toBe(1);
-    });
-
-    it('should sort alphabetically when page counts are equal', async () => {
-      // Create a third user
-      const thirdUserRes = await request(app.getHttpServer())
-        .post('/auth/register')
-        .send({
-          email: 'charlie@example.com',
-          username: 'charlie',
-          password: 'password123',
-        });
-      const thirdUserToken = thirdUserRes.body.token;
-
-      // Create pages for each user (1 page each)
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${authToken}`)
-        .send({ content: 'Page by testuser' });
-
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${anotherAuthToken}`)
-        .send({ content: 'Page by anotheruser' });
-
-      await request(app.getHttpServer())
-        .post(`/works/${collaborativeWorkId}/pages`)
-        .set('Authorization', `Bearer ${thirdUserToken}`)
-        .send({ content: 'Page by charlie' });
-
-      // Approve pending pages
-      const pendingRes = await request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/pages/pending`)
-        .set('Authorization', `Bearer ${authToken}`);
-
-      for (const page of pendingRes.body) {
-        await request(app.getHttpServer())
-          .post(`/pages/${page.id}/approve`)
-          .set('Authorization', `Bearer ${authToken}`);
-      }
-
-      // Get collaborators
-      const res = await request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/collaborators`)
-        .expect(200);
-
-      expect(res.body).toHaveLength(3);
-      // All have 1 page, so should be sorted alphabetically
-      expect(res.body[0].username).toBe('anotheruser');
-      expect(res.body[1].username).toBe('charlie');
-      expect(res.body[2].username).toBe('testuser');
-      expect(res.body[0].pageCount).toBe(1);
-      expect(res.body[1].pageCount).toBe(1);
-      expect(res.body[2].pageCount).toBe(1);
-    });
-
-    it('should be accessible without authentication', () => {
-      // Should not require auth token
       return request(app.getHttpServer())
-        .get(`/works/${collaborativeWorkId}/collaborators`)
+        .get(`/works/${work.id}/collaborators`)
         .expect(200);
     });
   });

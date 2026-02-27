@@ -172,9 +172,16 @@ WorkCollaborator {
 
 #### Authentication (`/auth`)
 
-- `POST /auth/register` - Register new user
-- `POST /auth/login` - Login and receive JWT token
+- `POST /auth/register` - Register new user (sets HttpOnly cookies)
+- `POST /auth/login` - Login (sets HttpOnly cookies)
+- `POST /auth/refresh` - Refresh access token using refresh token cookie
+- `POST /auth/logout` - Logout and revoke tokens
 - `GET /auth/me` - Get current user profile (protected)
+- `DELETE /auth/me` - Delete current user account (protected)
+- `POST /auth/verify-email` - Verify email address using token
+- `POST /auth/resend-verification` - Resend email verification link
+- `POST /auth/forgot-password` - Request password reset email
+- `POST /auth/reset-password` - Reset password using token
 
 #### Works/Stories (`/works`)
 
@@ -233,6 +240,10 @@ WorkCollaborator {
    JWT_SECRET="your-super-secret-jwt-key-min-64-chars"
    PORT=3001
    NODE_ENV=development
+   RESEND_API_KEY="re_your_resend_api_key"
+   EMAIL_FROM="noreply@yourdomain.com"
+   FRONTEND_URL="http://localhost:3000"
+   REDIS_URL="redis://localhost:6379"
    ```
 
 4. **Start PostgreSQL with Docker** (optional)
@@ -264,12 +275,20 @@ WorkCollaborator {
 # Unit tests
 yarn test
 
-# E2E tests
-yarn test:e2e
+# E2E tests (requires .env.test with PostgreSQL test DB and Redis)
+npx dotenv -e .env.test -- yarn test:e2e
+
+# Run a single e2e spec file
+npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec"
+
+# Run a single test by name
+npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "should logout and clear cookie"
 
 # Test coverage
 yarn test:cov
 ```
+
+> See [E2E_PLAN.md](./E2E_PLAN.md) for `.env.test` setup requirements and the full e2e test plan.
 
 ### Database Management
 
@@ -304,6 +323,10 @@ DATABASE_URL=postgresql://user:password@host:port/database
 JWT_SECRET=production-secret-key-min-64-chars
 PORT=3001
 NODE_ENV=production
+RESEND_API_KEY=re_your_resend_api_key
+EMAIL_FROM=noreply@yourdomain.com
+FRONTEND_URL=https://yourfrontenddomain.com
+REDIS_URL=redis://user:password@host:6379
 ```
 
 ### Deployment Process

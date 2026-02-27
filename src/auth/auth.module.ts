@@ -5,19 +5,32 @@ import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
+import { EmailModule } from '../email/email.module';
+import { RedisModule } from '../redis/redis.module';
+import { TokenCleanupService } from './token-cleanup.service';
 
 @Module({
   imports: [
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') || 'default-secret',
-        signOptions: { expiresIn: '7d' },
-      }),
+      useFactory: (config: ConfigService) => {
+        const secret = config.get<string>('JWT_SECRET');
+        if (!secret) {
+          throw new Error(
+            'JWT_SECRET environment variable is not set. Refusing to start.',
+          );
+        }
+        return {
+          secret,
+          signOptions: { expiresIn: '15m', algorithm: 'HS256' },
+        };
+      },
     }),
+    EmailModule,
+    RedisModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, JwtStrategy, TokenCleanupService],
 })
 export class AuthModule {}

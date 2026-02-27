@@ -19,6 +19,11 @@ describe('PagesController', () => {
     email: 'test@example.com',
     username: 'testuser',
     password: 'hashed',
+    isEmailVerified: false,
+    emailVerificationToken: null,
+    emailVerificationTokenExpiresAt: null,
+    passwordResetToken: null,
+    passwordResetTokenExpiresAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };

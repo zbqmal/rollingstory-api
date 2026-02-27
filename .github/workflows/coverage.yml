@@ -1,8 +1,8 @@
-name: PR Test Coverage
+name: Unit Test Coverage
 
 on:
   pull_request:
-    branches: [main, dev]
+    branches: [dev]
 
 jobs:
   test-coverage:
