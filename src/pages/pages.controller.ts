@@ -57,10 +57,10 @@ export class PagesController {
   @Get('works/:workId/pages/pending')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get pending page contributions (owner only)' })
+  @ApiOperation({ summary: 'Get pending page contributions (owner: all, contributor: own only)' })
   @ApiResponse({ status: 200, description: 'List of pending contributions' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden - not owner' })
+  @ApiResponse({ status: 404, description: 'Work not found' })
   getPending(@Param('workId') workId: string, @GetUser() user: User) {
     return this.pagesService.getPendingContributions(workId, user.id);
   }

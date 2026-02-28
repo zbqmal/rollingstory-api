@@ -11,6 +11,9 @@ describe('PagesController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    getPendingContributions: jest.fn(),
+    approveContribution: jest.fn(),
+    rejectContribution: jest.fn(),
     getCollaborators: jest.fn(),
   };
 
@@ -125,6 +128,21 @@ describe('PagesController', () => {
 
       expect(response).toEqual(result);
       expect(mockPagesService.remove).toHaveBeenCalledWith('page-1', 'user-1');
+    });
+  });
+
+  describe('getPending', () => {
+    it('should call getPendingContributions with workId and userId', async () => {
+      const pages = [{ ...mockPage, status: 'pending' }];
+      mockPagesService.getPendingContributions.mockResolvedValue(pages);
+
+      const result = await controller.getPending('work-1', mockUser);
+
+      expect(result).toEqual(pages);
+      expect(mockPagesService.getPendingContributions).toHaveBeenCalledWith(
+        'work-1',
+        'user-1',
+      );
     });
   });
 
