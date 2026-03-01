@@ -293,15 +293,41 @@ describe('Pages (e2e)', () => {
       });
     });
 
-    it('should return 403 if not the work owner', async () => {
+    it('should return contributor own pending pages when called by a contributor', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies, {
+        allowCollaboration: true,
+      });
+      const contributor = await registerUser(app, TEST_USER_2);
+
+      await request(app.getHttpServer())
+        .post(`/works/${work.id}/pages`)
+        .set('Cookie', contributor.allCookies)
+        .send({ content: 'My contribution' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', contributor.allCookies)
+        .expect(200);
+
+      const pages = res.body as { status: string; authorId: string }[];
+      expect(pages).toHaveLength(1);
+      expect(pages[0].status).toBe('pending');
+      expect(pages[0].authorId).toBe(contributor.userId);
+    });
+
+    it('should return 200 with empty array for authenticated user with no pending pages', async () => {
       const owner = await registerUser(app, TEST_USER);
       const work = await createWork(owner.allCookies);
       const other = await registerUser(app, TEST_USER_2);
 
-      return request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .get(`/works/${work.id}/pages/pending`)
         .set('Cookie', other.allCookies)
-        .expect(403);
+        .expect(200);
+
+      expect(res.body).toEqual([]);
     });
 
     it('should return empty array when there are no pending contributions', async () => {
