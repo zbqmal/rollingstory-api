@@ -316,6 +316,30 @@ describe('Pages (e2e)', () => {
       expect(pages[0].status).toBe('pending');
       expect(pages[0].authorId).toBe(contributor.userId);
     });
+  });
+
+  describe('GET /works/:workId/pages/:number', () => {
+    it('should return a specific approved page by number', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      await createPage(work.id, owner.allCookies, 'First page');
+      await createPage(work.id, owner.allCookies, 'Second page');
+
+      const res1 = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/1`)
+        .expect(200);
+      expect(res1.body.pageNumber).toBe(1);
+
+      const res2 = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/2`)
+        .expect(200);
+      expect(res2.body.pageNumber).toBe(2);
+    });
+
+    it('should return 404 if page number does not exist', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
 
     it('should return 200 with empty array for authenticated user with no pending pages', async () => {
       const owner = await registerUser(app, TEST_USER);
