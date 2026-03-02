@@ -387,6 +387,76 @@ describe('PagesService', () => {
     });
   });
 
+  describe('getPendingContributions', () => {
+    it('should return all pending pages when called by work owner', async () => {
+      const pendingPage1 = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
+      const pendingPage2 = { ...mockPage, id: 'page-2', status: 'pending', authorId: 'user-3' };
+      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
+      mockPrismaService.page.findMany.mockResolvedValue([pendingPage1, pendingPage2]);
+
+      const result = await service.getPendingContributions('work-1', 'user-1');
+
+      expect(result).toEqual([pendingPage1, pendingPage2]);
+      expect(mockPrismaService.page.findMany).toHaveBeenCalledWith({
+        where: { workId: 'work-1', status: 'pending' },
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+    });
+
+    it('should return only own pending pages when called by a contributor', async () => {
+      const ownPendingPage = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
+      const workByAnotherUser = { ...mockWork, authorId: 'owner-id' };
+      mockPrismaService.work.findUnique.mockResolvedValue(workByAnotherUser);
+      mockPrismaService.page.findMany.mockResolvedValue([ownPendingPage]);
+
+      const result = await service.getPendingContributions('work-1', 'user-2');
+
+      expect(result).toEqual([ownPendingPage]);
+      expect(mockPrismaService.page.findMany).toHaveBeenCalledWith({
+        where: { workId: 'work-1', status: 'pending', authorId: 'user-2' },
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              createdAt: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+    });
+
+    it('should return empty array when contributor has no pending pages for the work', async () => {
+      const workByAnotherUser = { ...mockWork, authorId: 'owner-id' };
+      mockPrismaService.work.findUnique.mockResolvedValue(workByAnotherUser);
+      mockPrismaService.page.findMany.mockResolvedValue([]);
+
+      const result = await service.getPendingContributions('work-1', 'user-2');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should throw NotFoundException if work not found', async () => {
+      mockPrismaService.work.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.getPendingContributions('work-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
   describe('getCollaborators', () => {
     it('should return collaborators sorted by page count', async () => {
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);

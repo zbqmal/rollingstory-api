@@ -233,8 +233,7 @@ export class PagesService {
     return { message: 'Page deleted successfully' };
   }
 
-  async getPendingContributions(workId: string, ownerId: string) {
-    // Verify work exists and user is owner
+  async getPendingContributions(workId: string, userId: string) {
     const work = await this.prisma.work.findUnique({
       where: { id: workId },
     });
@@ -243,17 +242,14 @@ export class PagesService {
       throw new NotFoundException('Work not found');
     }
 
-    if (work.authorId !== ownerId) {
-      throw new ForbiddenException(
-        'Only the work owner can perform this action',
-      );
-    }
+    const isOwner = work.authorId === userId;
 
-    // Return all pending pages for this work
+    // Owners see all pending pages; contributors see only their own pending pages
     const pendingPages = await this.prisma.page.findMany({
       where: {
         workId,
         status: 'pending',
+        ...(isOwner ? {} : { authorId: userId }),
       },
       include: {
         author: {
