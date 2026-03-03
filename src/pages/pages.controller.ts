@@ -20,7 +20,9 @@ import { PagesService } from './pages.service';
 import { CreatePageDto } from './dto/create-page.dto';
 import { UpdatePageDto } from './dto/update-page.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { OptionalGetUser } from '../auth/optional-get-user.decorator';
 import type { User } from '@prisma/client';
 
 @ApiTags('pages')
@@ -47,17 +49,26 @@ export class PagesController {
   }
 
   @Get('works/:workId/pages')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get all approved pages for a work' })
   @ApiResponse({ status: 200, description: 'List of approved pages' })
   @ApiResponse({ status: 404, description: 'Work not found' })
-  findAll(@Param('workId') workId: string) {
-    return this.pagesService.findAll(workId);
+  findAll(
+    @Param('workId') workId: string,
+    @OptionalGetUser() user: User | null = null,
+  ) {
+    return user
+      ? this.pagesService.findAll(workId, user.id)
+      : this.pagesService.findAll(workId);
   }
 
   @Get('works/:workId/pages/pending')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
-  @ApiOperation({ summary: 'Get pending page contributions (owner: all, contributor: own only)' })
+  @ApiOperation({
+    summary:
+      'Get pending page contributions (owner: all, contributor: own only)',
+  })
   @ApiResponse({ status: 200, description: 'List of pending contributions' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Work not found' })
@@ -66,14 +77,18 @@ export class PagesController {
   }
 
   @Get('works/:workId/pages/:number')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get specific page by number' })
   @ApiResponse({ status: 200, description: 'Page details' })
   @ApiResponse({ status: 404, description: 'Page not found' })
   findOne(
     @Param('workId') workId: string,
     @Param('number', ParseIntPipe) number: number,
+    @OptionalGetUser() user: User | null = null,
   ) {
-    return this.pagesService.findOne(workId, number);
+    return user
+      ? this.pagesService.findOne(workId, number, user.id)
+      : this.pagesService.findOne(workId, number);
   }
 
   @Patch('pages/:id')

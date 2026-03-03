@@ -14,7 +14,7 @@ function createMockExecutionContext(
     }),
     getType: () => 'http',
     getClass: () => class {},
-    getHandler: () => (() => {}),
+    getHandler: () => () => {},
     getArgs: () => [],
     getArgByIndex: () => ({}),
     switchToRpc: () => ({}),

@@ -389,10 +389,23 @@ describe('PagesService', () => {
 
   describe('getPendingContributions', () => {
     it('should return all pending pages when called by work owner', async () => {
-      const pendingPage1 = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
-      const pendingPage2 = { ...mockPage, id: 'page-2', status: 'pending', authorId: 'user-3' };
+      const pendingPage1 = {
+        ...mockPage,
+        id: 'page-1',
+        status: 'pending',
+        authorId: 'user-2',
+      };
+      const pendingPage2 = {
+        ...mockPage,
+        id: 'page-2',
+        status: 'pending',
+        authorId: 'user-3',
+      };
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
-      mockPrismaService.page.findMany.mockResolvedValue([pendingPage1, pendingPage2]);
+      mockPrismaService.page.findMany.mockResolvedValue([
+        pendingPage1,
+        pendingPage2,
+      ]);
 
       const result = await service.getPendingContributions('work-1', 'user-1');
 
@@ -414,7 +427,12 @@ describe('PagesService', () => {
     });
 
     it('should return only own pending pages when called by a contributor', async () => {
-      const ownPendingPage = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
+      const ownPendingPage = {
+        ...mockPage,
+        id: 'page-1',
+        status: 'pending',
+        authorId: 'user-2',
+      };
       const workByAnotherUser = { ...mockWork, authorId: 'owner-id' };
       mockPrismaService.work.findUnique.mockResolvedValue(workByAnotherUser);
       mockPrismaService.page.findMany.mockResolvedValue([ownPendingPage]);

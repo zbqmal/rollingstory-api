@@ -22,7 +22,9 @@ import { WorksService } from './works.service';
 import { CreateWorkDto } from './dto/create-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { OptionalGetUser } from '../auth/optional-get-user.decorator';
 import type { User } from '@prisma/client';
 
 @ApiTags('works')
@@ -41,6 +43,7 @@ export class WorksController {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get all works with pagination' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
@@ -48,8 +51,11 @@ export class WorksController {
   findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @OptionalGetUser() user: User | null = null,
   ) {
-    return this.worksService.findAll(page, limit);
+    return user
+      ? this.worksService.findAll(page, limit, user.id)
+      : this.worksService.findAll(page, limit);
   }
 
   @Get('my')
@@ -63,11 +69,17 @@ export class WorksController {
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get work by ID' })
   @ApiResponse({ status: 200, description: 'Work details' })
   @ApiResponse({ status: 404, description: 'Work not found' })
-  findOne(@Param('id') id: string) {
-    return this.worksService.findOne(id);
+  findOne(
+    @Param('id') id: string,
+    @OptionalGetUser() user: User | null = null,
+  ) {
+    return user
+      ? this.worksService.findOne(id, user.id)
+      : this.worksService.findOne(id);
   }
 
   @Patch(':id')

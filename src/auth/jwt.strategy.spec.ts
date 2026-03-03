@@ -19,7 +19,11 @@ describe('JwtStrategy', () => {
   };
 
   const mockConfigService = {
-    get: jest.fn().mockReturnValue('test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'),
+    get: jest
+      .fn()
+      .mockReturnValue(
+        'test-secret-min-64-chars-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx',
+      ),
   };
 
   const mockUser = {

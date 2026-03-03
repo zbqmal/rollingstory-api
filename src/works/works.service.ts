@@ -36,7 +36,7 @@ export class WorksService {
     return work;
   }
 
-  async findAll(page: number = 1, limit: number = 10) {
+  async findAll(page: number = 1, limit: number = 10, userId?: string) {
     const skip = (page - 1) * limit;
 
     const [works, total] = await Promise.all([
@@ -65,6 +65,20 @@ export class WorksService {
       this.prisma.work.count(),
     ]);
 
+    if (userId) {
+      const workIds = works.map((w) => w.id);
+      const likedWorks = await this.prisma.like.findMany({
+        where: { userId, workId: { in: workIds } },
+        select: { workId: true },
+      });
+      const likedSet = new Set(likedWorks.map((l) => l.workId));
+      const worksWithLikes = works.map((w) => ({
+        ...w,
+        isLikedByCurrentUser: likedSet.has(w.id),
+      }));
+      return { data: worksWithLikes, total, page, limit };
+    }
+
     return {
       data: works,
       total,
@@ -90,10 +104,20 @@ export class WorksService {
       },
     });
 
-    return works;
+    const workIds = works.map((w) => w.id);
+    const likedWorks = await this.prisma.like.findMany({
+      where: { userId, workId: { in: workIds } },
+      select: { workId: true },
+    });
+    const likedSet = new Set(likedWorks.map((l) => l.workId));
+
+    return works.map((w) => ({
+      ...w,
+      isLikedByCurrentUser: likedSet.has(w.id),
+    }));
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, userId?: string) {
     const work = await this.prisma.work.findUnique({
       where: { id },
       include: {
@@ -115,6 +139,14 @@ export class WorksService {
 
     if (!work) {
       throw new NotFoundException('Work not found');
+    }
+
+    if (userId) {
+      const like = await this.prisma.like.findUnique({
+        where: { userId_workId: { userId, workId: id } },
+        select: { workId: true },
+      });
+      return { ...work, isLikedByCurrentUser: !!like };
     }
 
     return work;

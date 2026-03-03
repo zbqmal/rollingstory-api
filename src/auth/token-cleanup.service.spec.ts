@@ -42,7 +42,10 @@ describe('TokenCleanupService', () => {
   it('should log the count of deleted tokens', async () => {
     mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 3 });
     const logSpy = jest
-      .spyOn((service as unknown as { logger: { log: jest.Mock } }).logger, 'log')
+      .spyOn(
+        (service as unknown as { logger: { log: jest.Mock } }).logger,
+        'log',
+      )
       .mockImplementation(() => {});
 
     await service.purgeExpiredRefreshTokens();

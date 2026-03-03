@@ -97,7 +97,7 @@ export class PagesService {
     }
   }
 
-  async findAll(workId: string) {
+  async findAll(workId: string, userId?: string) {
     const pages = await this.prisma.page.findMany({
       where: { workId, status: 'approved' },
       include: {
@@ -113,10 +113,23 @@ export class PagesService {
       orderBy: { pageNumber: 'asc' },
     });
 
+    if (userId) {
+      const pageIds = pages.map((p) => p.id);
+      const likedPages = await this.prisma.like.findMany({
+        where: { userId, pageId: { in: pageIds } },
+        select: { pageId: true },
+      });
+      const likedSet = new Set(likedPages.map((l) => l.pageId));
+      return pages.map((p) => ({
+        ...p,
+        isLikedByCurrentUser: likedSet.has(p.id),
+      }));
+    }
+
     return pages;
   }
 
-  async findOne(workId: string, pageNumber: number) {
+  async findOne(workId: string, pageNumber: number, userId?: string) {
     const page = await this.prisma.page.findFirst({
       where: {
         workId,
@@ -137,6 +150,14 @@ export class PagesService {
 
     if (!page) {
       throw new NotFoundException('Page not found');
+    }
+
+    if (userId) {
+      const like = await this.prisma.like.findUnique({
+        where: { userId_pageId: { userId, pageId: page.id } },
+        select: { pageId: true },
+      });
+      return { ...page, isLikedByCurrentUser: !!like };
     }
 
     return page;

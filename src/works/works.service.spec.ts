@@ -16,6 +16,10 @@ describe('WorksService', () => {
       delete: jest.fn(),
       count: jest.fn(),
     },
+    like: {
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+    },
   };
 
   const mockAuthor = {
@@ -185,6 +189,7 @@ describe('WorksService', () => {
       ];
 
       mockPrismaService.work.findMany.mockResolvedValue(mockWorks);
+      mockPrismaService.like.findMany.mockResolvedValue([]);
 
       const result = await service.findMyWorks('user-1');
 
@@ -203,7 +208,9 @@ describe('WorksService', () => {
           createdAt: 'desc',
         },
       });
-      expect(result).toEqual(mockWorks);
+      expect(result).toEqual(
+        mockWorks.map((w) => ({ ...w, isLikedByCurrentUser: false })),
+      );
     });
   });
 
