@@ -5,6 +5,7 @@ import {
   Param,
   UseGuards,
   HttpCode,
+  ParseIntPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -46,7 +47,7 @@ export class LikesController {
     return this.likesService.unlikeWork(id, user.id);
   }
 
-  @Post('pages/:id/like')
+  @Post('works/:workId/pages/:pageNumber/like')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Like a page' })
@@ -55,11 +56,15 @@ export class LikesController {
   @ApiResponse({ status: 403, description: 'Forbidden - page is pending' })
   @ApiResponse({ status: 404, description: 'Page not found' })
   @ApiResponse({ status: 409, description: 'Already liked' })
-  likePage(@Param('id') id: string, @GetUser() user: User) {
-    return this.likesService.likePage(id, user.id);
+  likePage(
+    @Param('workId') workId: string,
+    @Param('pageNumber', ParseIntPipe) pageNumber: number,
+    @GetUser() user: User,
+  ) {
+    return this.likesService.likePage(workId, pageNumber, user.id);
   }
 
-  @Delete('pages/:id/like')
+  @Delete('works/:workId/pages/:pageNumber/like')
   @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JWT-auth')
@@ -68,7 +73,11 @@ export class LikesController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden - page is pending' })
   @ApiResponse({ status: 404, description: 'Page not found or like not found' })
-  unlikePage(@Param('id') id: string, @GetUser() user: User) {
-    return this.likesService.unlikePage(id, user.id);
+  unlikePage(
+    @Param('workId') workId: string,
+    @Param('pageNumber', ParseIntPipe) pageNumber: number,
+    @GetUser() user: User,
+  ) {
+    return this.likesService.unlikePage(workId, pageNumber, user.id);
   }
 }
