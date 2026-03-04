@@ -5,6 +5,7 @@ import { PrismaService } from '../../src/prisma/prisma.service';
  * Use in beforeEach of e2e tests instead of duplicating deleteMany calls.
  */
 export async function cleanDatabase(prisma: PrismaService): Promise<void> {
+  await prisma.like.deleteMany();
   await prisma.workCollaborator.deleteMany();
   await prisma.page.deleteMany();
   await prisma.work.deleteMany();

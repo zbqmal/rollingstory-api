@@ -7,11 +7,12 @@ describe('WorksController', () => {
 
   const mockWorksService = {
     create: jest.fn(),
-    findAll: jest.fn(),
-    findMyWorks: jest.fn(),
-    findOne: jest.fn(),
+    getAll: jest.fn(),
+    getMyWorks: jest.fn(),
+    getById: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
+    getCollaborators: jest.fn(),
   };
 
   const mockUser = {
@@ -83,7 +84,7 @@ describe('WorksController', () => {
     });
   });
 
-  describe('findAll', () => {
+  describe('getAll', () => {
     it('should return paginated works', async () => {
       const paginatedResult = {
         data: [mockWork],
@@ -92,11 +93,11 @@ describe('WorksController', () => {
         limit: 10,
       };
 
-      mockWorksService.findAll.mockResolvedValue(paginatedResult);
+      mockWorksService.getAll.mockResolvedValue(paginatedResult);
 
-      const result = await controller.findAll(1, 10);
+      const result = await controller.getAll(1, 10);
 
-      expect(mockWorksService.findAll).toHaveBeenCalledWith(1, 10);
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(1, 10);
       expect(result).toEqual(paginatedResult);
     });
 
@@ -108,34 +109,34 @@ describe('WorksController', () => {
         limit: 10,
       };
 
-      mockWorksService.findAll.mockResolvedValue(paginatedResult);
+      mockWorksService.getAll.mockResolvedValue(paginatedResult);
 
-      await controller.findAll(1, 10);
+      await controller.getAll(1, 10);
 
-      expect(mockWorksService.findAll).toHaveBeenCalledWith(1, 10);
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(1, 10);
     });
   });
 
-  describe('findMyWorks', () => {
+  describe('getMyWorks', () => {
     it('should return current user works', async () => {
       const userWorks = [mockWork];
 
-      mockWorksService.findMyWorks.mockResolvedValue(userWorks);
+      mockWorksService.getMyWorks.mockResolvedValue(userWorks);
 
-      const result = await controller.findMyWorks(mockUser);
+      const result = await controller.getMyWorks(mockUser);
 
-      expect(mockWorksService.findMyWorks).toHaveBeenCalledWith(mockUser.id);
+      expect(mockWorksService.getMyWorks).toHaveBeenCalledWith(mockUser.id);
       expect(result).toEqual(userWorks);
     });
   });
 
-  describe('findOne', () => {
+  describe('getById', () => {
     it('should return a work by id', async () => {
-      mockWorksService.findOne.mockResolvedValue(mockWork);
+      mockWorksService.getById.mockResolvedValue(mockWork);
 
-      const result = await controller.findOne('work-1');
+      const result = await controller.getById('work-1');
 
-      expect(mockWorksService.findOne).toHaveBeenCalledWith('work-1');
+      expect(mockWorksService.getById).toHaveBeenCalledWith('work-1');
       expect(result).toEqual(mockWork);
     });
   });
@@ -173,6 +174,21 @@ describe('WorksController', () => {
         mockUser.id,
       );
       expect(result).toEqual(deleteResult);
+    });
+  });
+
+  describe('getCollaborators', () => {
+    it('should return list of collaborators', async () => {
+      const collaborators = [
+        { userId: 'user-1', username: 'alice', pageCount: 12 },
+        { userId: 'user-2', username: 'bob', pageCount: 8 },
+      ];
+      mockWorksService.getCollaborators.mockResolvedValue(collaborators);
+
+      const result = await controller.getCollaborators('work-1');
+
+      expect(result).toEqual(collaborators);
+      expect(mockWorksService.getCollaborators).toHaveBeenCalledWith('work-1');
     });
   });
 });

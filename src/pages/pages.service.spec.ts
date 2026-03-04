@@ -204,12 +204,12 @@ describe('PagesService', () => {
     });
   });
 
-  describe('findAll', () => {
+  describe('getAllPages', () => {
     it('should return all approved pages for a work', async () => {
       const pages = [mockPage, { ...mockPage, id: 'page-2', pageNumber: 2 }];
       mockPrismaService.page.findMany.mockResolvedValue(pages);
 
-      const result = await service.findAll('work-1');
+      const result = await service.getAllPages('work-1');
 
       expect(result).toEqual(pages);
       expect(mockPrismaService.page.findMany).toHaveBeenCalledWith({
@@ -231,17 +231,17 @@ describe('PagesService', () => {
     it('should return empty array if no approved pages', async () => {
       mockPrismaService.page.findMany.mockResolvedValue([]);
 
-      const result = await service.findAll('work-1');
+      const result = await service.getAllPages('work-1');
 
       expect(result).toEqual([]);
     });
   });
 
-  describe('findOne', () => {
+  describe('getById', () => {
     it('should return a specific approved page', async () => {
       mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
 
-      const result = await service.findOne('work-1', 1);
+      const result = await service.getById('work-1', 1);
 
       expect(result).toEqual(mockPage);
       expect(mockPrismaService.page.findFirst).toHaveBeenCalledWith({
@@ -266,7 +266,7 @@ describe('PagesService', () => {
     it('should throw NotFoundException if page not found', async () => {
       mockPrismaService.page.findFirst.mockResolvedValue(null);
 
-      await expect(service.findOne('work-1', 1)).rejects.toThrow(
+      await expect(service.getById('work-1', 1)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -389,10 +389,23 @@ describe('PagesService', () => {
 
   describe('getPendingContributions', () => {
     it('should return all pending pages when called by work owner', async () => {
-      const pendingPage1 = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
-      const pendingPage2 = { ...mockPage, id: 'page-2', status: 'pending', authorId: 'user-3' };
+      const pendingPage1 = {
+        ...mockPage,
+        id: 'page-1',
+        status: 'pending',
+        authorId: 'user-2',
+      };
+      const pendingPage2 = {
+        ...mockPage,
+        id: 'page-2',
+        status: 'pending',
+        authorId: 'user-3',
+      };
       mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
-      mockPrismaService.page.findMany.mockResolvedValue([pendingPage1, pendingPage2]);
+      mockPrismaService.page.findMany.mockResolvedValue([
+        pendingPage1,
+        pendingPage2,
+      ]);
 
       const result = await service.getPendingContributions('work-1', 'user-1');
 
@@ -414,7 +427,12 @@ describe('PagesService', () => {
     });
 
     it('should return only own pending pages when called by a contributor', async () => {
-      const ownPendingPage = { ...mockPage, id: 'page-1', status: 'pending', authorId: 'user-2' };
+      const ownPendingPage = {
+        ...mockPage,
+        id: 'page-1',
+        status: 'pending',
+        authorId: 'user-2',
+      };
       const workByAnotherUser = { ...mockWork, authorId: 'owner-id' };
       mockPrismaService.work.findUnique.mockResolvedValue(workByAnotherUser);
       mockPrismaService.page.findMany.mockResolvedValue([ownPendingPage]);
@@ -454,64 +472,6 @@ describe('PagesService', () => {
       await expect(
         service.getPendingContributions('work-1', 'user-1'),
       ).rejects.toThrow(NotFoundException);
-    });
-  });
-
-  describe('getCollaborators', () => {
-    it('should return collaborators sorted by page count', async () => {
-      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
-      mockPrismaService.$queryRaw.mockResolvedValue([
-        { userId: 'user-1', username: 'alice', pageCount: 12 },
-        { userId: 'user-2', username: 'bob', pageCount: 8 },
-        { userId: 'user-3', username: 'carol', pageCount: 5 },
-      ]);
-
-      const result = await service.getCollaborators('work-1');
-
-      expect(result).toEqual([
-        { userId: 'user-1', username: 'alice', pageCount: 12 },
-        { userId: 'user-2', username: 'bob', pageCount: 8 },
-        { userId: 'user-3', username: 'carol', pageCount: 5 },
-      ]);
-      expect(mockPrismaService.work.findUnique).toHaveBeenCalledWith({
-        where: { id: 'work-1' },
-      });
-      expect(mockPrismaService.$queryRaw).toHaveBeenCalled();
-    });
-
-    it('should return empty array if no approved pages', async () => {
-      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
-      mockPrismaService.$queryRaw.mockResolvedValue([]);
-
-      const result = await service.getCollaborators('work-1');
-
-      expect(result).toEqual([]);
-    });
-
-    it('should throw NotFoundException if work does not exist', async () => {
-      mockPrismaService.work.findUnique.mockResolvedValue(null);
-
-      await expect(service.getCollaborators('work-1')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should sort alphabetically when page counts are equal', async () => {
-      mockPrismaService.work.findUnique.mockResolvedValue(mockWork);
-      mockPrismaService.$queryRaw.mockResolvedValue([
-        { userId: 'user-1', username: 'alice', pageCount: 5 },
-        { userId: 'user-2', username: 'bob', pageCount: 5 },
-        { userId: 'user-3', username: 'carol', pageCount: 5 },
-      ]);
-
-      const result = await service.getCollaborators('work-1');
-
-      expect(result).toEqual([
-        { userId: 'user-1', username: 'alice', pageCount: 5 },
-        { userId: 'user-2', username: 'bob', pageCount: 5 },
-        { userId: 'user-3', username: 'carol', pageCount: 5 },
-      ]);
-      // Verify sorting was handled by the SQL query
     });
   });
 });
