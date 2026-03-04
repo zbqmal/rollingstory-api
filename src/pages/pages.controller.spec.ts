@@ -7,14 +7,13 @@ describe('PagesController', () => {
 
   const mockPagesService = {
     create: jest.fn(),
-    findAll: jest.fn(),
-    findOne: jest.fn(),
+    getAllPages: jest.fn(),
+    getById: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
     getPendingContributions: jest.fn(),
     approveContribution: jest.fn(),
     rejectContribution: jest.fn(),
-    getCollaborators: jest.fn(),
   };
 
   const mockUser = {
@@ -80,26 +79,26 @@ describe('PagesController', () => {
     });
   });
 
-  describe('findAll', () => {
+  describe('getAllPages', () => {
     it('should return all pages', async () => {
       const pages = [mockPage];
-      mockPagesService.findAll.mockResolvedValue(pages);
+      mockPagesService.getAllPages.mockResolvedValue(pages);
 
-      const result = await controller.findAll('work-1');
+      const result = await controller.getAllPages('work-1');
 
       expect(result).toEqual(pages);
-      expect(mockPagesService.findAll).toHaveBeenCalledWith('work-1');
+      expect(mockPagesService.getAllPages).toHaveBeenCalledWith('work-1');
     });
   });
 
-  describe('findOne', () => {
+  describe('getById', () => {
     it('should return a specific page', async () => {
-      mockPagesService.findOne.mockResolvedValue(mockPage);
+      mockPagesService.getById.mockResolvedValue(mockPage);
 
-      const result = await controller.findOne('work-1', 1);
+      const result = await controller.getById('work-1', 1);
 
       expect(result).toEqual(mockPage);
-      expect(mockPagesService.findOne).toHaveBeenCalledWith('work-1', 1);
+      expect(mockPagesService.getById).toHaveBeenCalledWith('work-1', 1);
     });
   });
 
@@ -143,21 +142,6 @@ describe('PagesController', () => {
         'work-1',
         'user-1',
       );
-    });
-  });
-
-  describe('getCollaborators', () => {
-    it('should return list of collaborators', async () => {
-      const collaborators = [
-        { userId: 'user-1', username: 'alice', pageCount: 12 },
-        { userId: 'user-2', username: 'bob', pageCount: 8 },
-      ];
-      mockPagesService.getCollaborators.mockResolvedValue(collaborators);
-
-      const result = await controller.getCollaborators('work-1');
-
-      expect(result).toEqual(collaborators);
-      expect(mockPagesService.getCollaborators).toHaveBeenCalledWith('work-1');
     });
   });
 });

@@ -53,13 +53,13 @@ export class PagesController {
   @ApiOperation({ summary: 'Get all approved pages for a work' })
   @ApiResponse({ status: 200, description: 'List of approved pages' })
   @ApiResponse({ status: 404, description: 'Work not found' })
-  findAll(
+  getAllPages(
     @Param('workId') workId: string,
     @OptionalGetUser() user: User | null = null,
   ) {
     return user
-      ? this.pagesService.findAll(workId, user.id)
-      : this.pagesService.findAll(workId);
+      ? this.pagesService.getAllPages(workId, user.id)
+      : this.pagesService.getAllPages(workId);
   }
 
   @Get('works/:workId/pages/pending')
@@ -81,14 +81,14 @@ export class PagesController {
   @ApiOperation({ summary: 'Get specific page by number' })
   @ApiResponse({ status: 200, description: 'Page details' })
   @ApiResponse({ status: 404, description: 'Page not found' })
-  findOne(
+  getById(
     @Param('workId') workId: string,
     @Param('number', ParseIntPipe) number: number,
     @OptionalGetUser() user: User | null = null,
   ) {
     return user
-      ? this.pagesService.findOne(workId, number, user.id)
-      : this.pagesService.findOne(workId, number);
+      ? this.pagesService.getById(workId, number, user.id)
+      : this.pagesService.getById(workId, number);
   }
 
   @Patch('pages/:id')
@@ -142,13 +142,5 @@ export class PagesController {
   @ApiResponse({ status: 404, description: 'Page not found' })
   reject(@Param('id') id: string, @GetUser() user: User) {
     return this.pagesService.rejectContribution(id, user.id);
-  }
-
-  @Get('works/:workId/collaborators')
-  @ApiOperation({ summary: 'Get all collaborators for a work' })
-  @ApiResponse({ status: 200, description: 'List of collaborators' })
-  @ApiResponse({ status: 404, description: 'Work not found' })
-  getCollaborators(@Param('workId') workId: string) {
-    return this.pagesService.getCollaborators(workId);
   }
 }

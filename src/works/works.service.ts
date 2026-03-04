@@ -36,7 +36,7 @@ export class WorksService {
     return work;
   }
 
-  async findAll(page: number = 1, limit: number = 10, userId?: string) {
+  async getAll(page: number = 1, limit: number = 10, userId?: string) {
     const skip = (page - 1) * limit;
 
     const [works, total] = await Promise.all([
@@ -87,7 +87,7 @@ export class WorksService {
     };
   }
 
-  async findMyWorks(userId: string) {
+  async getMyWorks(userId: string) {
     const works = await this.prisma.work.findMany({
       where: {
         authorId: userId,
@@ -117,7 +117,7 @@ export class WorksService {
     }));
   }
 
-  async findOne(id: string, userId?: string) {
+  async getById(id: string, userId?: string) {
     const work = await this.prisma.work.findUnique({
       where: { id },
       include: {
@@ -203,5 +203,35 @@ export class WorksService {
     });
 
     return { message: 'Work deleted successfully' };
+  }
+
+  async getCollaborators(workId: string) {
+    // Verify work exists
+    const work = await this.prisma.work.findUnique({
+      where: { id: workId },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Work not found');
+    }
+
+    // Use query builder for efficient aggregation
+    const collaborators = await this.prisma.$queryRaw<
+      Array<{ userId: string; username: string; pageCount: number }>
+    >`
+      SELECT 
+        "User"."id" as "userId",
+        "User"."username" as "username",
+        COUNT("Page"."id")::int as "pageCount"
+      FROM "Page"
+      INNER JOIN "User" ON "Page"."authorId" = "User"."id"
+      WHERE "Page"."workId" = ${workId}
+        AND "Page"."status" = 'approved'
+      GROUP BY "User"."id", "User"."username"
+      ORDER BY "pageCount" DESC, "User"."username" ASC
+    `;
+
+    // Return collaborators (already in correct format)
+    return collaborators;
   }
 }
