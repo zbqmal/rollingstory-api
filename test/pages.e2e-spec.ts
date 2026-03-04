@@ -316,6 +316,31 @@ describe('Pages (e2e)', () => {
       expect(pages[0].status).toBe('pending');
       expect(pages[0].authorId).toBe(contributor.userId);
     });
+
+    it('should return 200 with empty array for authenticated user with no pending pages', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+      const other = await registerUser(app, TEST_USER_2);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', other.allCookies)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
+
+    it('should return empty array when there are no pending contributions', async () => {
+      const owner = await registerUser(app, TEST_USER);
+      const work = await createWork(owner.allCookies);
+
+      const res = await request(app.getHttpServer())
+        .get(`/works/${work.id}/pages/pending`)
+        .set('Cookie', owner.allCookies)
+        .expect(200);
+
+      expect(res.body).toEqual([]);
+    });
   });
 
   describe('GET /works/:workId/pages/:number', () => {
@@ -335,36 +360,6 @@ describe('Pages (e2e)', () => {
         .get(`/works/${work.id}/pages/2`)
         .expect(200);
       expect(res2.body.pageNumber).toBe(2);
-    });
-
-    it('should return 404 if page number does not exist', async () => {
-      const owner = await registerUser(app, TEST_USER);
-      const work = await createWork(owner.allCookies);
-
-      it('should return 200 with empty array for authenticated user with no pending pages', async () => {
-        const owner = await registerUser(app, TEST_USER);
-        const work = await createWork(owner.allCookies);
-        const other = await registerUser(app, TEST_USER_2);
-
-        const res = await request(app.getHttpServer())
-          .get(`/works/${work.id}/pages/pending`)
-          .set('Cookie', other.allCookies)
-          .expect(200);
-
-        expect(res.body).toEqual([]);
-      });
-
-      it('should return empty array when there are no pending contributions', async () => {
-        const owner = await registerUser(app, TEST_USER);
-        const work = await createWork(owner.allCookies);
-
-        const res = await request(app.getHttpServer())
-          .get(`/works/${work.id}/pages/pending`)
-          .set('Cookie', owner.allCookies)
-          .expect(200);
-
-        expect(res.body).toEqual([]);
-      });
     });
 
     describe('GET /works/:workId/pages/:number', () => {
