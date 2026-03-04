@@ -144,4 +144,36 @@ describe('PagesController', () => {
       );
     });
   });
+
+  describe('approve', () => {
+    it('should approve a pending contribution', async () => {
+      const approvedPage = { ...mockPage, status: 'approved' };
+      mockPagesService.approveContribution.mockResolvedValue(approvedPage);
+
+      const result = await controller.approve('page-1', mockUser);
+
+      expect(result).toEqual(approvedPage);
+      expect(mockPagesService.approveContribution).toHaveBeenCalledWith(
+        'page-1',
+        'user-1',
+      );
+    });
+  });
+
+  describe('reject', () => {
+    it('should reject a pending contribution', async () => {
+      const deleteResult = {
+        message: 'Contribution rejected and deleted successfully',
+      };
+      mockPagesService.rejectContribution.mockResolvedValue(deleteResult);
+
+      const result = await controller.reject('page-1', mockUser);
+
+      expect(result).toEqual(deleteResult);
+      expect(mockPagesService.rejectContribution).toHaveBeenCalledWith(
+        'page-1',
+        'user-1',
+      );
+    });
+  });
 });

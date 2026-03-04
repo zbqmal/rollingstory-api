@@ -1,5 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { LikesService } from './likes.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
@@ -209,6 +213,16 @@ describe('LikesService', () => {
         ConflictException,
       );
     });
+
+    it('should throw ForbiddenException when page is pending', async () => {
+      const pendingPage = { ...mockPage, status: 'pending' };
+      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
+
+      await expect(service.likePage('page-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
+    });
   });
 
   describe('unlikePage', () => {
@@ -273,6 +287,16 @@ describe('LikesService', () => {
 
       expect(result.likesCount).toBe(0);
       expect(result.isLiked).toBe(false);
+    });
+
+    it('should throw ForbiddenException when page is pending', async () => {
+      const pendingPage = { ...mockPage, status: 'pending' };
+      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
+
+      await expect(service.unlikePage('page-1', 'user-1')).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
   });
 });

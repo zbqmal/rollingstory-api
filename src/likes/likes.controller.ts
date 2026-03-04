@@ -52,6 +52,7 @@ export class LikesController {
   @ApiOperation({ summary: 'Like a page' })
   @ApiResponse({ status: 201, description: 'Page liked successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - page is pending' })
   @ApiResponse({ status: 404, description: 'Page not found' })
   @ApiResponse({ status: 409, description: 'Already liked' })
   likePage(@Param('id') id: string, @GetUser() user: User) {
@@ -65,6 +66,7 @@ export class LikesController {
   @ApiOperation({ summary: 'Unlike a page' })
   @ApiResponse({ status: 200, description: 'Page unliked successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - page is pending' })
   @ApiResponse({ status: 404, description: 'Page not found or like not found' })
   unlikePage(@Param('id') id: string, @GetUser() user: User) {
     return this.likesService.unlikePage(id, user.id);

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LikeResponseDto } from './dto/like-response.dto';
@@ -76,6 +77,10 @@ export class LikesService {
       throw new NotFoundException('Page not found');
     }
 
+    if (page.status !== 'approved') {
+      throw new ForbiddenException('Cannot like a pending page');
+    }
+
     try {
       const updatedPage = await this.prisma.$transaction(async (tx) => {
         await tx.like.create({ data: { userId, pageId } });
@@ -101,6 +106,10 @@ export class LikesService {
     const page = await this.prisma.page.findUnique({ where: { id: pageId } });
     if (!page) {
       throw new NotFoundException('Page not found');
+    }
+
+    if (page.status !== 'approved') {
+      throw new ForbiddenException('Cannot unlike a pending page');
     }
 
     try {
