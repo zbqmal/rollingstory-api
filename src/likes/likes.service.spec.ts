@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   ConflictException,
   NotFoundException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { LikesService } from './likes.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -17,7 +16,7 @@ describe('LikesService', () => {
       update: jest.fn(),
     },
     page: {
-      findUnique: jest.fn(),
+      findFirst: jest.fn(),
       update: jest.fn(),
     },
     like: {
@@ -172,7 +171,7 @@ describe('LikesService', () => {
 
   describe('likePage', () => {
     it('should like a page and return updated likesCount with isLiked: true', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
+      mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         const tx = {
           like: { create: jest.fn().mockResolvedValue({}) },
@@ -184,50 +183,40 @@ describe('LikesService', () => {
         return await callback(tx);
       });
 
-      const result = await service.likePage('page-1', 'user-2');
+      const result = await service.likePage('work-1', 1, 'user-2');
 
       expect(result).toEqual({ likesCount: 4, isLiked: true });
-      expect(mockPrismaService.page.findUnique).toHaveBeenCalledWith({
-        where: { id: 'page-1' },
+      expect(mockPrismaService.page.findFirst).toHaveBeenCalledWith({
+        where: { workId: 'work-1', pageNumber: 1, status: 'approved' },
       });
     });
 
     it('should throw NotFoundException when page does not exist', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(null);
+      mockPrismaService.page.findFirst.mockResolvedValue(null);
 
-      await expect(service.likePage('non-existent', 'user-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.likePage('work-1', 1, 'user-1'),
+      ).rejects.toThrow(NotFoundException);
       expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
 
     it('should throw ConflictException on duplicate like (P2002)', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
+      mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
       const p2002Error = new Prisma.PrismaClientKnownRequestError(
         'Unique constraint violation',
         { code: 'P2002', clientVersion: '5.0.0', meta: {} },
       );
       mockPrismaService.$transaction.mockRejectedValue(p2002Error);
 
-      await expect(service.likePage('page-1', 'user-1')).rejects.toThrow(
+      await expect(service.likePage('work-1', 1, 'user-1')).rejects.toThrow(
         ConflictException,
       );
-    });
-
-    it('should throw ForbiddenException when page is pending', async () => {
-      const pendingPage = { ...mockPage, status: 'pending' };
-      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
-
-      await expect(service.likePage('page-1', 'user-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
   });
 
   describe('unlikePage', () => {
     it('should unlike a page and return updated likesCount with isLiked: false', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
+      mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         const tx = {
           like: { delete: jest.fn().mockResolvedValue({}) },
@@ -239,34 +228,34 @@ describe('LikesService', () => {
         return await callback(tx);
       });
 
-      const result = await service.unlikePage('page-1', 'user-2');
+      const result = await service.unlikePage('work-1', 1, 'user-2');
 
       expect(result).toEqual({ likesCount: 2, isLiked: false });
     });
 
     it('should throw NotFoundException when page does not exist', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(null);
+      mockPrismaService.page.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.unlikePage('non-existent', 'user-1'),
+        service.unlikePage('work-1', 1, 'user-1'),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when like does not exist (P2025)', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue(mockPage);
+      mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
       const p2025Error = new Prisma.PrismaClientKnownRequestError(
         'Record not found',
         { code: 'P2025', clientVersion: '5.0.0', meta: {} },
       );
       mockPrismaService.$transaction.mockRejectedValue(p2025Error);
 
-      await expect(service.unlikePage('page-1', 'user-1')).rejects.toThrow(
+      await expect(service.unlikePage('work-1', 1, 'user-1')).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('should guard against likesCount going below 0', async () => {
-      mockPrismaService.page.findUnique.mockResolvedValue({
+      mockPrismaService.page.findFirst.mockResolvedValue({
         ...mockPage,
         likesCount: 0,
       });
@@ -283,20 +272,10 @@ describe('LikesService', () => {
         return await callback(tx);
       });
 
-      const result = await service.unlikePage('page-1', 'user-2');
+      const result = await service.unlikePage('work-1', 1, 'user-2');
 
       expect(result.likesCount).toBe(0);
       expect(result.isLiked).toBe(false);
-    });
-
-    it('should throw ForbiddenException when page is pending', async () => {
-      const pendingPage = { ...mockPage, status: 'pending' };
-      mockPrismaService.page.findUnique.mockResolvedValue(pendingPage);
-
-      await expect(service.unlikePage('page-1', 'user-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(mockPrismaService.$transaction).not.toHaveBeenCalled();
     });
   });
 });

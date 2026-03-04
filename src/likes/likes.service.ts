@@ -2,7 +2,6 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { LikeResponseDto } from './dto/like-response.dto';
@@ -71,16 +70,19 @@ export class LikesService {
     }
   }
 
-  async likePage(pageId: string, userId: string): Promise<LikeResponseDto> {
-    const page = await this.prisma.page.findUnique({ where: { id: pageId } });
+  async likePage(
+    workId: string,
+    pageNumber: number,
+    userId: string,
+  ): Promise<LikeResponseDto> {
+    const page = await this.prisma.page.findFirst({
+      where: { workId, pageNumber, status: 'approved' },
+    });
     if (!page) {
       throw new NotFoundException('Page not found');
     }
 
-    if (page.status !== 'approved') {
-      throw new ForbiddenException('Cannot like a pending page');
-    }
-
+    const pageId = page.id;
     try {
       const updatedPage = await this.prisma.$transaction(async (tx) => {
         await tx.like.create({ data: { userId, pageId } });
@@ -102,16 +104,19 @@ export class LikesService {
     }
   }
 
-  async unlikePage(pageId: string, userId: string): Promise<LikeResponseDto> {
-    const page = await this.prisma.page.findUnique({ where: { id: pageId } });
+  async unlikePage(
+    workId: string,
+    pageNumber: number,
+    userId: string,
+  ): Promise<LikeResponseDto> {
+    const page = await this.prisma.page.findFirst({
+      where: { workId, pageNumber, status: 'approved' },
+    });
     if (!page) {
       throw new NotFoundException('Page not found');
     }
 
-    if (page.status !== 'approved') {
-      throw new ForbiddenException('Cannot unlike a pending page');
-    }
-
+    const pageId = page.id;
     try {
       const updatedPage = await this.prisma.$transaction(async (tx) => {
         await tx.like.delete({

@@ -80,11 +80,12 @@ describe('LikesController', () => {
       const response = { likesCount: 5, isLiked: true };
       mockLikesService.likePage.mockResolvedValue(response);
 
-      const result = await controller.likePage('page-1', mockUser);
+      const result = await controller.likePage('work-1', 1, mockUser);
 
       expect(result).toEqual(response);
       expect(mockLikesService.likePage).toHaveBeenCalledWith(
-        'page-1',
+        'work-1',
+        1,
         'user-1',
       );
     });
@@ -95,11 +96,12 @@ describe('LikesController', () => {
       const response = { likesCount: 4, isLiked: false };
       mockLikesService.unlikePage.mockResolvedValue(response);
 
-      const result = await controller.unlikePage('page-1', mockUser);
+      const result = await controller.unlikePage('work-1', 1, mockUser);
 
       expect(result).toEqual(response);
       expect(mockLikesService.unlikePage).toHaveBeenCalledWith(
-        'page-1',
+        'work-1',
+        1,
         'user-1',
       );
     });
