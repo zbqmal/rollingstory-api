@@ -97,7 +97,7 @@ export class PagesService {
     }
   }
 
-  async findAll(workId: string) {
+  async getAllPages(workId: string, userId?: string) {
     const pages = await this.prisma.page.findMany({
       where: { workId, status: 'approved' },
       include: {
@@ -113,10 +113,23 @@ export class PagesService {
       orderBy: { pageNumber: 'asc' },
     });
 
+    if (userId) {
+      const pageIds = pages.map((p) => p.id);
+      const likedPages = await this.prisma.like.findMany({
+        where: { userId, pageId: { in: pageIds } },
+        select: { pageId: true },
+      });
+      const likedSet = new Set(likedPages.map((l) => l.pageId));
+      return pages.map((p) => ({
+        ...p,
+        isLikedByCurrentUser: likedSet.has(p.id),
+      }));
+    }
+
     return pages;
   }
 
-  async findOne(workId: string, pageNumber: number) {
+  async getById(workId: string, pageNumber: number, userId?: string) {
     const page = await this.prisma.page.findFirst({
       where: {
         workId,
@@ -137,6 +150,14 @@ export class PagesService {
 
     if (!page) {
       throw new NotFoundException('Page not found');
+    }
+
+    if (userId) {
+      const like = await this.prisma.like.findUnique({
+        where: { userId_pageId: { userId, pageId: page.id } },
+        select: { pageId: true },
+      });
+      return { ...page, isLikedByCurrentUser: !!like };
     }
 
     return page;
@@ -351,35 +372,5 @@ export class PagesService {
     });
 
     return { message: 'Contribution rejected and deleted successfully' };
-  }
-
-  async getCollaborators(workId: string) {
-    // Verify work exists
-    const work = await this.prisma.work.findUnique({
-      where: { id: workId },
-    });
-
-    if (!work) {
-      throw new NotFoundException('Work not found');
-    }
-
-    // Use query builder for efficient aggregation
-    const collaborators = await this.prisma.$queryRaw<
-      Array<{ userId: string; username: string; pageCount: number }>
-    >`
-      SELECT 
-        "User"."id" as "userId",
-        "User"."username" as "username",
-        COUNT("Page"."id")::int as "pageCount"
-      FROM "Page"
-      INNER JOIN "User" ON "Page"."authorId" = "User"."id"
-      WHERE "Page"."workId" = ${workId}
-        AND "Page"."status" = 'approved'
-      GROUP BY "User"."id", "User"."username"
-      ORDER BY "pageCount" DESC, "User"."username" ASC
-    `;
-
-    // Return collaborators (already in correct format)
-    return collaborators;
   }
 }

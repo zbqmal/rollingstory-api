@@ -22,7 +22,9 @@ import { WorksService } from './works.service';
 import { CreateWorkDto } from './dto/create-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
+import { OptionalGetUser } from '../auth/optional-get-user.decorator';
 import type { User } from '@prisma/client';
 
 @ApiTags('works')
@@ -41,15 +43,19 @@ export class WorksController {
   }
 
   @Get()
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get all works with pagination' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiResponse({ status: 200, description: 'List of works' })
-  findAll(
+  getAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @OptionalGetUser() user: User | null = null,
   ) {
-    return this.worksService.findAll(page, limit);
+    return user
+      ? this.worksService.getAll(page, limit, user.id)
+      : this.worksService.getAll(page, limit);
   }
 
   @Get('my')
@@ -58,16 +64,22 @@ export class WorksController {
   @ApiOperation({ summary: "Get current user's works" })
   @ApiResponse({ status: 200, description: "List of user's works" })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  findMyWorks(@GetUser() user: User) {
-    return this.worksService.findMyWorks(user.id);
+  getMyWorks(@GetUser() user: User) {
+    return this.worksService.getMyWorks(user.id);
   }
 
   @Get(':id')
+  @UseGuards(OptionalJwtAuthGuard)
   @ApiOperation({ summary: 'Get work by ID' })
   @ApiResponse({ status: 200, description: 'Work details' })
   @ApiResponse({ status: 404, description: 'Work not found' })
-  findOne(@Param('id') id: string) {
-    return this.worksService.findOne(id);
+  getById(
+    @Param('id') id: string,
+    @OptionalGetUser() user: User | null = null,
+  ) {
+    return user
+      ? this.worksService.getById(id, user.id)
+      : this.worksService.getById(id);
   }
 
   @Patch(':id')
@@ -96,5 +108,13 @@ export class WorksController {
   @ApiResponse({ status: 404, description: 'Work not found' })
   remove(@Param('id') id: string, @GetUser() user: User) {
     return this.worksService.remove(id, user.id);
+  }
+
+  @Get(':id/collaborators')
+  @ApiOperation({ summary: 'Get all collaborators for a work' })
+  @ApiResponse({ status: 200, description: 'List of collaborators' })
+  @ApiResponse({ status: 404, description: 'Work not found' })
+  getCollaborators(@Param('id') id: string) {
+    return this.worksService.getCollaborators(id);
   }
 }

@@ -29,6 +29,7 @@ model User {
   pages           Page[]
   collaborations  WorkCollaborator[]
   refreshTokens   RefreshToken[]
+  likes           Like[]
 }
 
 model Work {
@@ -40,12 +41,14 @@ model Work {
   author              User                @relation("AuthoredWorks", fields: [authorId], references: [id])
   pageCharLimit       Int                 @default(2000)
   allowCollaboration  Boolean             @default(true)
+  likesCount          Int                 @default(0)
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
   
   // Relations
   pages               Page[]
   collaborators       WorkCollaborator[]
+  likes               Like[]
 }
 
 model Page {
@@ -57,8 +60,10 @@ model Page {
   content     String    @db.Text
   pageNumber  Int?      // Nullable - only assigned when approved
   status      String    @default("pending") // "pending" | "approved"
+  likesCount  Int       @default(0)
   createdAt   DateTime  @default(now())
   approvedAt  DateTime? // Timestamp when approved
+  likes       Like[]
   
   @@unique([workId, pageNumber])
   @@index([workId, status])
@@ -85,4 +90,21 @@ model RefreshToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workId    String?
+  work      Work?    @relation(fields: [workId], references: [id], onDelete: Cascade)
+  pageId    String?
+  page      Page?    @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, workId])
+  @@unique([userId, pageId])
+  @@index([workId])
+  @@index([pageId])
+  @@index([userId])
 }

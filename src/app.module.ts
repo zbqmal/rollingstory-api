@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { WorksModule } from './works/works.module';
 import { PagesModule } from './pages/pages.module';
 import { RedisModule } from './redis/redis.module';
+import { LikesModule } from './likes/likes.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RedisModule } from './redis/redis.module';
     AuthModule,
     WorksModule,
     PagesModule,
+    LikesModule,
   ],
   controllers: [AppController],
   providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
