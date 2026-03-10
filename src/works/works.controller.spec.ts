@@ -34,6 +34,7 @@ describe('WorksController', () => {
     title: 'Test Work',
     description: 'Test Description',
     type: 'novel',
+    genre: null,
     pageCharLimit: 2000,
     allowCollaboration: true,
     authorId: 'user-1',
@@ -97,7 +98,12 @@ describe('WorksController', () => {
 
       const result = await controller.getAll(1, 10);
 
-      expect(mockWorksService.getAll).toHaveBeenCalledWith(1, 10);
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(
+        1,
+        10,
+        undefined,
+        undefined,
+      );
       expect(result).toEqual(paginatedResult);
     });
 
@@ -113,7 +119,45 @@ describe('WorksController', () => {
 
       await controller.getAll(1, 10);
 
-      expect(mockWorksService.getAll).toHaveBeenCalledWith(1, 10);
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(
+        1,
+        10,
+        undefined,
+        undefined,
+      );
+    });
+
+    it('should pass genre param to worksService.getAll when provided', async () => {
+      const paginatedResult = {
+        data: [mockWork],
+        total: 1,
+        page: 1,
+        limit: 10,
+      };
+      mockWorksService.getAll.mockResolvedValue(paginatedResult);
+
+      await controller.getAll(1, 10, 'horror');
+
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(
+        1,
+        10,
+        undefined,
+        'horror',
+      );
+    });
+
+    it('should pass undefined genre to worksService.getAll when not provided', async () => {
+      const paginatedResult = { data: [], total: 0, page: 1, limit: 10 };
+      mockWorksService.getAll.mockResolvedValue(paginatedResult);
+
+      await controller.getAll(1, 10);
+
+      expect(mockWorksService.getAll).toHaveBeenCalledWith(
+        1,
+        10,
+        undefined,
+        undefined,
+      );
     });
   });
 

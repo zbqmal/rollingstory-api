@@ -4,11 +4,14 @@ import {
   IsOptional,
   IsBoolean,
   IsNumber,
+  IsIn,
   MinLength,
   MaxLength,
   Min,
   Max,
 } from 'class-validator';
+import { WORK_GENRES } from '../genre.constants';
+import type { WorkGenre } from '../genre.constants';
 
 export class CreateWorkDto {
   @ApiProperty({
@@ -56,4 +59,13 @@ export class CreateWorkDto {
   @IsBoolean()
   @IsOptional()
   allowCollaboration?: boolean = true;
+
+  @ApiPropertyOptional({
+    example: 'fantasy',
+    description: 'Genre of the work',
+    enum: WORK_GENRES,
+  })
+  @IsIn(WORK_GENRES)
+  @IsOptional()
+  genre?: WorkGenre;
 }

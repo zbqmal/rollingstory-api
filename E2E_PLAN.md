@@ -181,6 +181,9 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 | ✅ Added in Phase 3 | should return 400 if title is missing |
 | ✅ Added in Phase 3 | should return 400 if title is too short (< 3 chars) |
 | ✅ Added in Phase 3 | should return 400 if title is too long (> 200 chars) |
+| ✅ Added | should create a work with a valid genre |
+| ✅ Added | should return 400 if genre is invalid |
+| ✅ Added | should have null genre when not provided |
 
 ### `GET /works`
 
@@ -190,6 +193,14 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 | ✅ Added in Phase 3 | should return list of works with pagination metadata |
 | ✅ Added in Phase 3 | should paginate correctly with page and limit params |
 | ✅ Added in Phase 3 | should be accessible without authentication |
+
+### `GET /works — genre filtering`
+
+| Status | Test |
+|--------|------|
+| ✅ Added | should return only works matching the requested genre |
+| ✅ Added | should return empty array when no works match the genre |
+| ✅ Added | should return all works when no genre param is provided |
 
 ### `GET /works/my`
 
@@ -216,6 +227,8 @@ npx dotenv -e .env.test -- yarn test:e2e --testPathPattern="auth.e2e-spec" -t "t
 | ✅ Added in Phase 3 | should update allowCollaboration flag |
 | ✅ Added in Phase 3 | should return 403 if not the owner |
 | ✅ Added in Phase 3 | should return 404 if work does not exist |
+| ✅ Added | should update genre to a valid value |
+| ✅ Added | should return 400 when updating with invalid genre |
 
 ### `DELETE /works/:id`
 

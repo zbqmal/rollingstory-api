@@ -119,6 +119,40 @@ describe('Works (e2e)', () => {
         .send({ title: 'a'.repeat(201) })
         .expect(400);
     });
+
+    it('should create a work with a valid genre', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Genre Work', genre: 'fantasy' })
+        .expect(201);
+
+      expect(res.body.genre).toBe('fantasy');
+    });
+
+    it('should return 400 if genre is invalid', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      return request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Bad Genre Work', genre: 'invalid-genre' })
+        .expect(400);
+    });
+
+    it('should have null genre when not provided', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const res = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'No Genre Work' })
+        .expect(201);
+
+      expect(res.body.genre).toBeNull();
+    });
   });
 
   describe('GET /works', () => {
@@ -332,6 +366,104 @@ describe('Works (e2e)', () => {
         .set('Cookie', auth.allCookies)
         .send({ title: 'Valid Title' })
         .expect(404);
+    });
+
+    it('should update genre to a valid value', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Genre Update Work' });
+      const workId: string = createRes.body.id;
+
+      const res = await request(app.getHttpServer())
+        .patch(`/works/${workId}`)
+        .set('Cookie', auth.allCookies)
+        .send({ genre: 'mystery' })
+        .expect(200);
+
+      expect(res.body.genre).toBe('mystery');
+    });
+
+    it('should return 400 when updating with invalid genre', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      const createRes = await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Genre Update Work 2' });
+      const workId: string = createRes.body.id;
+
+      return request(app.getHttpServer())
+        .patch(`/works/${workId}`)
+        .set('Cookie', auth.allCookies)
+        .send({ genre: 'not-a-genre' })
+        .expect(400);
+    });
+  });
+
+  describe('GET /works — genre filtering', () => {
+    it('should return only works matching the requested genre', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Horror Story', genre: 'horror' });
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Mystery Story', genre: 'mystery' });
+
+      const res = await request(app.getHttpServer())
+        .get('/works?genre=horror')
+        .expect(200);
+
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.total).toBe(1);
+      expect(res.body.data[0].genre).toBe('horror');
+    });
+
+    it('should return empty array when no works match the genre', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Fantasy Story', genre: 'fantasy' });
+
+      const res = await request(app.getHttpServer())
+        .get('/works?genre=horror')
+        .expect(200);
+
+      expect(res.body.data.length).toBe(0);
+      expect(res.body.total).toBe(0);
+    });
+
+    it('should return all works when no genre param is provided', async () => {
+      const auth = await registerUser(app, TEST_USER);
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Horror Story', genre: 'horror' });
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'Fantasy Story', genre: 'fantasy' });
+
+      await request(app.getHttpServer())
+        .post('/works')
+        .set('Cookie', auth.allCookies)
+        .send({ title: 'No Genre Story' });
+
+      const res = await request(app.getHttpServer()).get('/works').expect(200);
+
+      expect(res.body.data.length).toBe(3);
+      expect(res.body.total).toBe(3);
     });
   });
 

@@ -26,6 +26,7 @@ import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { OptionalGetUser } from '../auth/optional-get-user.decorator';
 import type { User } from '@prisma/client';
+import { WORK_GENRES } from './genre.constants';
 
 @ApiTags('works')
 @Controller('works')
@@ -47,15 +48,17 @@ export class WorksController {
   @ApiOperation({ summary: 'Get all works with pagination' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  @ApiQuery({ name: 'genre', required: false, type: String, enum: WORK_GENRES })
   @ApiResponse({ status: 200, description: 'List of works' })
   getAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number,
+    @Query('genre') genre?: string,
     @OptionalGetUser() user: User | null = null,
   ) {
     return user
-      ? this.worksService.getAll(page, limit, user.id)
-      : this.worksService.getAll(page, limit);
+      ? this.worksService.getAll(page, limit, user.id, genre)
+      : this.worksService.getAll(page, limit, undefined, genre);
   }
 
   @Get('my')

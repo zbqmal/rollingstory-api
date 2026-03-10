@@ -17,6 +17,7 @@ export class WorksService {
         title: dto.title,
         description: dto.description,
         type: dto.type || 'novel',
+        genre: dto.genre ?? null,
         pageCharLimit: dto.pageCharLimit || 2000,
         allowCollaboration: dto.allowCollaboration ?? true,
         authorId: userId,
@@ -36,11 +37,18 @@ export class WorksService {
     return work;
   }
 
-  async getAll(page: number = 1, limit: number = 10, userId?: string) {
+  async getAll(
+    page: number = 1,
+    limit: number = 10,
+    userId?: string,
+    genre?: string,
+  ) {
     const skip = (page - 1) * limit;
+    const where = genre ? { genre } : {};
 
     const [works, total] = await Promise.all([
       this.prisma.work.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -62,7 +70,7 @@ export class WorksService {
           createdAt: 'desc',
         },
       }),
-      this.prisma.work.count(),
+      this.prisma.work.count({ where }),
     ]);
 
     if (userId) {
