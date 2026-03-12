@@ -10,8 +10,8 @@ import {
   Min,
   Max,
 } from 'class-validator';
-import { WORK_GENRES } from '../genre.constants';
-import type { WorkGenre } from '../genre.constants';
+import { WORK_GENRES } from '../constants';
+import type { WorkGenre } from '../constants';
 
 export class CreateWorkDto {
   @ApiProperty({

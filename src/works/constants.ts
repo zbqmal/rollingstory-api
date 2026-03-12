@@ -4,7 +4,7 @@ export const WORK_GENRES = [
   'mystery',
   'romance',
   'horror',
-  'historical-fiction',
+  'fiction',
   'thriller',
   'uncategorized',
 ] as const;

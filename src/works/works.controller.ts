@@ -26,7 +26,7 @@ import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { GetUser } from '../auth/get-user.decorator';
 import { OptionalGetUser } from '../auth/optional-get-user.decorator';
 import type { User } from '@prisma/client';
-import { WORK_GENRES } from './genre.constants';
+import { WORK_GENRES } from './constants';
 
 @ApiTags('works')
 @Controller('works')
