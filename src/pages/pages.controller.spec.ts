@@ -87,7 +87,10 @@ describe('PagesController', () => {
       const result = await controller.getAllPages('work-1');
 
       expect(result).toEqual(pages);
-      expect(mockPagesService.getAllPages).toHaveBeenCalledWith('work-1');
+      expect(mockPagesService.getAllPages).toHaveBeenCalledWith(
+        'work-1',
+        undefined,
+      );
     });
   });
 
@@ -98,7 +101,11 @@ describe('PagesController', () => {
       const result = await controller.getByNumber('work-1', 1);
 
       expect(result).toEqual(mockPage);
-      expect(mockPagesService.getByNumber).toHaveBeenCalledWith('work-1', 1);
+      expect(mockPagesService.getByNumber).toHaveBeenCalledWith(
+        'work-1',
+        1,
+        undefined,
+      );
     });
   });
 

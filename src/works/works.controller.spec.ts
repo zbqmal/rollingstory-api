@@ -180,7 +180,10 @@ describe('WorksController', () => {
 
       const result = await controller.getById('work-1');
 
-      expect(mockWorksService.getById).toHaveBeenCalledWith('work-1');
+      expect(mockWorksService.getById).toHaveBeenCalledWith(
+        'work-1',
+        undefined,
+      );
       expect(result).toEqual(mockWork);
     });
   });
