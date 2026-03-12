@@ -111,7 +111,10 @@ export class AuthController {
     @GetUser() user: User,
     @Res({ passthrough: true }) res: Response,
   ) {
-    return this.authService.deleteAccount(user.id, res);
+    const result = await this.authService.deleteAccount(user.id);
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+    return result;
   }
 
   @Post('verify-email')

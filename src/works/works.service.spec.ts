@@ -35,6 +35,7 @@ describe('WorksService', () => {
     title: 'Test Work',
     description: 'Test Description',
     type: 'novel',
+    genre: null,
     pageCharLimit: 2000,
     allowCollaboration: true,
     authorId: 'user-1',
@@ -80,6 +81,7 @@ describe('WorksService', () => {
           title: createDto.title,
           description: createDto.description,
           type: createDto.type,
+          genre: null,
           pageCharLimit: createDto.pageCharLimit,
           allowCollaboration: createDto.allowCollaboration,
           authorId: 'user-1',
@@ -105,6 +107,7 @@ describe('WorksService', () => {
       const workWithDefaults = {
         ...mockWork,
         type: 'novel',
+        genre: null,
         pageCharLimit: 2000,
         allowCollaboration: true,
       };
@@ -117,9 +120,37 @@ describe('WorksService', () => {
         expect.objectContaining({
           data: expect.objectContaining({
             type: 'novel',
+            genre: null,
             pageCharLimit: 2000,
             allowCollaboration: true,
           }),
+        }),
+      );
+    });
+
+    it('should create a work with a genre', async () => {
+      const dtoWithGenre = { ...createDto, genre: 'fantasy' as const };
+      const workWithGenre = { ...mockWork, genre: 'fantasy' };
+      mockPrismaService.work.create.mockResolvedValue(workWithGenre);
+
+      const result = await service.create('user-1', dtoWithGenre);
+
+      expect(mockPrismaService.work.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ genre: 'fantasy' }),
+        }),
+      );
+      expect(result.genre).toBe('fantasy');
+    });
+
+    it('should create a work without genre (genre defaults to null)', async () => {
+      mockPrismaService.work.create.mockResolvedValue(mockWork);
+
+      await service.create('user-1', createDto);
+
+      expect(mockPrismaService.work.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ genre: null }),
         }),
       );
     });
@@ -138,6 +169,7 @@ describe('WorksService', () => {
       const result = await service.getAll(1, 10);
 
       expect(mockPrismaService.work.findMany).toHaveBeenCalledWith({
+        where: {},
         skip: 0,
         take: 10,
         include: {
@@ -179,6 +211,40 @@ describe('WorksService', () => {
           take: 10,
         }),
       );
+    });
+
+    it('should filter works by genre when genre param is provided', async () => {
+      const horrorWork = { ...mockWork, genre: 'horror', _count: { pages: 2 } };
+      mockPrismaService.work.findMany.mockResolvedValue([horrorWork]);
+      mockPrismaService.work.count.mockResolvedValue(1);
+
+      const result = await service.getAll(1, 10, undefined, 'horror');
+
+      expect(mockPrismaService.work.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { genre: 'horror' } }),
+      );
+      expect(mockPrismaService.work.count).toHaveBeenCalledWith({
+        where: { genre: 'horror' },
+      });
+      expect(result.data).toEqual([horrorWork]);
+      expect(result.total).toBe(1);
+    });
+
+    it('should return all works when no genre param is provided', async () => {
+      const mockWorks = [
+        { ...mockWork, genre: 'horror', _count: { pages: 1 } },
+        { ...mockWork, id: 'work-2', genre: 'fantasy', _count: { pages: 2 } },
+      ];
+      mockPrismaService.work.findMany.mockResolvedValue(mockWorks);
+      mockPrismaService.work.count.mockResolvedValue(2);
+
+      const result = await service.getAll(1, 10);
+
+      expect(mockPrismaService.work.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: {} }),
+      );
+      expect(mockPrismaService.work.count).toHaveBeenCalledWith({ where: {} });
+      expect(result.total).toBe(2);
     });
   });
 

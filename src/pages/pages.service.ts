@@ -129,7 +129,7 @@ export class PagesService {
     return pages;
   }
 
-  async getById(workId: string, pageNumber: number, userId?: string) {
+  async getByNumber(workId: string, pageNumber: number, userId?: string) {
     const page = await this.prisma.page.findFirst({
       where: {
         workId,

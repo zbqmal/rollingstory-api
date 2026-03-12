@@ -121,11 +121,8 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, 12);
 
     // Generate email verification token (32 bytes hex = 64 chars)
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    const verificationTokenExpiresAt = new Date();
-    verificationTokenExpiresAt.setHours(
-      verificationTokenExpiresAt.getHours() + 24,
-    );
+    const { verificationToken, verificationTokenExpiresAt } =
+      this.generateEmailVerificationCode();
 
     // Create user
     const user = await this.prisma.user.create({
@@ -229,6 +226,7 @@ export class AuthService {
     return { message: 'Tokens refreshed' };
   }
 
+  // TODO: Remove eslint disable comments and resolve them with a better approach
   async logout(req: Request, res: Response) {
     const refreshToken = req.cookies?.['refresh_token'] as string | undefined;
     const accessToken = req.cookies?.['access_token'] as string | undefined;
@@ -265,16 +263,12 @@ export class AuthService {
       }
     }
 
-    if (!refreshToken) {
-      res.clearCookie('access_token', { path: '/' });
-      res.clearCookie('refresh_token', { path: '/' });
-      return { message: 'Logged out successfully' };
-    }
-
-    const dotIndex = refreshToken.indexOf('.');
-    if (dotIndex !== -1) {
-      const userId = refreshToken.substring(0, dotIndex);
-      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+    if (refreshToken) {
+      const dotIndex = refreshToken.indexOf('.');
+      if (dotIndex !== -1) {
+        const userId = refreshToken.substring(0, dotIndex);
+        await this.prisma.refreshToken.deleteMany({ where: { userId } });
+      }
     }
 
     res.clearCookie('access_token', { path: '/' });
@@ -301,7 +295,7 @@ export class AuthService {
     };
   }
 
-  async deleteAccount(userId: string, res: Response) {
+  async deleteAccount(userId: string) {
     // Check if user has any authored works
     const authoredWorksCount = await this.prisma.work.count({
       where: { authorId: userId },
@@ -313,13 +307,17 @@ export class AuthService {
       );
     }
 
-    await this.prisma.refreshToken.deleteMany({ where: { userId } });
-    await this.prisma.user.delete({ where: { id: userId } });
+    try {
+      await this.prisma.refreshToken.deleteMany({ where: { userId } });
+      await this.prisma.user.delete({ where: { id: userId } });
 
-    res.clearCookie('access_token', { path: '/' });
-    res.clearCookie('refresh_token', { path: '/' });
-
-    return { message: 'Account deleted successfully' };
+      return { message: 'Account deleted successfully' };
+    } catch (err) {
+      this.logger.error(
+        `Failed to delete user account ${userId}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      throw new BadRequestException('Failed to delete account');
+    }
   }
 
   async verifyEmail(token: string) {
@@ -351,11 +349,9 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (user && !user.isEmailVerified) {
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-      const verificationTokenExpiresAt = new Date();
-      verificationTokenExpiresAt.setHours(
-        verificationTokenExpiresAt.getHours() + 24,
-      );
+      // Generate email verification token (32 bytes hex = 64 chars)
+      const { verificationToken, verificationTokenExpiresAt } =
+        this.generateEmailVerificationCode();
 
       await this.prisma.user.update({
         where: { id: user.id },
@@ -433,5 +429,15 @@ export class AuthService {
     });
 
     return { message: 'Password reset successfully' };
+  }
+
+  private generateEmailVerificationCode() {
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const verificationTokenExpiresAt = new Date();
+    verificationTokenExpiresAt.setHours(
+      verificationTokenExpiresAt.getHours() + 24,
+    );
+
+    return { verificationToken, verificationTokenExpiresAt };
   }
 }

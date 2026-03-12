@@ -676,12 +676,12 @@ describe('AuthService', () => {
       };
     });
 
-    it('should delete refresh tokens and user, clear cookies, and return success message', async () => {
+    it('should delete refresh tokens and user, and return success message', async () => {
       mockPrismaService.work.count.mockResolvedValue(0);
       mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 2 });
       mockPrismaService.user.delete.mockResolvedValue({});
 
-      const result = await service.deleteAccount('user-id', mockRes);
+      const result = await service.deleteAccount('user-id');
 
       expect(mockPrismaService.work.count).toHaveBeenCalledWith({
         where: { authorId: 'user-id' },
@@ -692,19 +692,13 @@ describe('AuthService', () => {
       expect(mockPrismaService.user.delete).toHaveBeenCalledWith({
         where: { id: 'user-id' },
       });
-      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
-        path: '/',
-      });
-      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
-        path: '/',
-      });
       expect(result).toEqual({ message: 'Account deleted successfully' });
     });
 
     it('should throw ConflictException if user has authored works', async () => {
       mockPrismaService.work.count.mockResolvedValue(3);
 
-      await expect(service.deleteAccount('user-id', mockRes)).rejects.toThrow(
+      await expect(service.deleteAccount('user-id')).rejects.toThrow(
         ConflictException,
       );
       expect(mockPrismaService.work.count).toHaveBeenCalledWith({
@@ -712,7 +706,16 @@ describe('AuthService', () => {
       });
       expect(mockPrismaService.refreshToken.deleteMany).not.toHaveBeenCalled();
       expect(mockPrismaService.user.delete).not.toHaveBeenCalled();
-      expect(mockRes.clearCookie).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if a DB operation fails', async () => {
+      mockPrismaService.work.count.mockResolvedValue(0);
+      mockPrismaService.refreshToken.deleteMany.mockResolvedValue({ count: 0 });
+      mockPrismaService.user.delete.mockRejectedValue(new Error('DB error'));
+
+      await expect(service.deleteAccount('user-id')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 

@@ -179,7 +179,7 @@ describe('AuthController', () => {
   });
 
   describe('deleteMe', () => {
-    it('should call authService.deleteAccount with user id and response', async () => {
+    it('should call authService.deleteAccount with user id and clear cookies', async () => {
       const mockUser: User = {
         id: 'user-id',
         email: 'test@example.com',
@@ -201,10 +201,13 @@ describe('AuthController', () => {
 
       const result = await controller.deleteMe(mockUser, mockRes);
 
-      expect(mockAuthService.deleteAccount).toHaveBeenCalledWith(
-        mockUser.id,
-        mockRes,
-      );
+      expect(mockAuthService.deleteAccount).toHaveBeenCalledWith(mockUser.id);
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
+        path: '/',
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
       expect(result).toEqual({ message: 'Account deleted successfully' });
     });
   });

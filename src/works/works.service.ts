@@ -17,6 +17,7 @@ export class WorksService {
         title: dto.title,
         description: dto.description,
         type: dto.type || 'novel',
+        genre: dto.genre ?? null,
         pageCharLimit: dto.pageCharLimit || 2000,
         allowCollaboration: dto.allowCollaboration ?? true,
         authorId: userId,
@@ -36,11 +37,18 @@ export class WorksService {
     return work;
   }
 
-  async getAll(page: number = 1, limit: number = 10, userId?: string) {
+  async getAll(
+    page: number = 1,
+    limit: number = 10,
+    userId?: string,
+    genre?: string,
+  ) {
     const skip = (page - 1) * limit;
+    const where = genre ? { genre } : {};
 
     const [works, total] = await Promise.all([
       this.prisma.work.findMany({
+        where,
         skip,
         take: limit,
         include: {
@@ -62,9 +70,10 @@ export class WorksService {
           createdAt: 'desc',
         },
       }),
-      this.prisma.work.count(),
+      this.prisma.work.count({ where }),
     ]);
 
+    // TODO: Create a util function to get the map of likes for Pages and Works both
     if (userId) {
       const workIds = works.map((w) => w.id);
       const likedWorks = await this.prisma.like.findMany({
@@ -215,6 +224,7 @@ export class WorksService {
       throw new NotFoundException('Work not found');
     }
 
+    // TODO: Can we just use Prisma instead of executing raw query????
     // Use query builder for efficient aggregation
     const collaborators = await this.prisma.$queryRaw<
       Array<{ userId: string; username: string; pageCount: number }>
