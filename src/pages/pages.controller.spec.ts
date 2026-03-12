@@ -8,7 +8,7 @@ describe('PagesController', () => {
   const mockPagesService = {
     create: jest.fn(),
     getAllPages: jest.fn(),
-    getById: jest.fn(),
+    getByNumber: jest.fn(),
     update: jest.fn(),
     remove: jest.fn(),
     getPendingContributions: jest.fn(),
@@ -91,14 +91,14 @@ describe('PagesController', () => {
     });
   });
 
-  describe('getById', () => {
+  describe('getByNumber', () => {
     it('should return a specific page', async () => {
-      mockPagesService.getById.mockResolvedValue(mockPage);
+      mockPagesService.getByNumber.mockResolvedValue(mockPage);
 
-      const result = await controller.getById('work-1', 1);
+      const result = await controller.getByNumber('work-1', 1);
 
       expect(result).toEqual(mockPage);
-      expect(mockPagesService.getById).toHaveBeenCalledWith('work-1', 1);
+      expect(mockPagesService.getByNumber).toHaveBeenCalledWith('work-1', 1);
     });
   });
 

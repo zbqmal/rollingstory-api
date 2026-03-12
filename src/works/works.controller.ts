@@ -56,9 +56,7 @@ export class WorksController {
     @Query('genre') genre?: string,
     @OptionalGetUser() user: User | null = null,
   ) {
-    return user
-      ? this.worksService.getAll(page, limit, user.id, genre)
-      : this.worksService.getAll(page, limit, undefined, genre);
+    return this.worksService.getAll(page, limit, user?.id, genre);
   }
 
   @Get('my')
@@ -80,9 +78,7 @@ export class WorksController {
     @Param('id') id: string,
     @OptionalGetUser() user: User | null = null,
   ) {
-    return user
-      ? this.worksService.getById(id, user.id)
-      : this.worksService.getById(id);
+    return this.worksService.getById(id, user?.id);
   }
 
   @Patch(':id')

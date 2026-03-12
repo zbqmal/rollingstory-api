@@ -107,11 +107,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Delete current user account' })
   @ApiResponse({ status: 200, description: 'Account deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async deleteMe(
-    @GetUser() user: User,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    return this.authService.deleteAccount(user.id, res);
+  async deleteMe(@GetUser() user: User) {
+    return this.authService.deleteAccount(user.id);
   }
 
   @Post('verify-email')

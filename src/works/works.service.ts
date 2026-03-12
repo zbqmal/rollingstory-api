@@ -73,6 +73,7 @@ export class WorksService {
       this.prisma.work.count({ where }),
     ]);
 
+    // TODO: Create a util function to get the map of likes for Pages and Works both
     if (userId) {
       const workIds = works.map((w) => w.id);
       const likedWorks = await this.prisma.like.findMany({
@@ -223,6 +224,7 @@ export class WorksService {
       throw new NotFoundException('Work not found');
     }
 
+    // TODO: Can we just use Prisma instead of executing raw query????
     // Use query builder for efficient aggregation
     const collaborators = await this.prisma.$queryRaw<
       Array<{ userId: string; username: string; pageCount: number }>

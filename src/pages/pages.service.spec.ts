@@ -237,11 +237,11 @@ describe('PagesService', () => {
     });
   });
 
-  describe('getById', () => {
+  describe('getByNumber', () => {
     it('should return a specific approved page', async () => {
       mockPrismaService.page.findFirst.mockResolvedValue(mockPage);
 
-      const result = await service.getById('work-1', 1);
+      const result = await service.getByNumber('work-1', 1);
 
       expect(result).toEqual(mockPage);
       expect(mockPrismaService.page.findFirst).toHaveBeenCalledWith({
@@ -266,7 +266,7 @@ describe('PagesService', () => {
     it('should throw NotFoundException if page not found', async () => {
       mockPrismaService.page.findFirst.mockResolvedValue(null);
 
-      await expect(service.getById('work-1', 1)).rejects.toThrow(
+      await expect(service.getByNumber('work-1', 1)).rejects.toThrow(
         NotFoundException,
       );
     });

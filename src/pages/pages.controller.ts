@@ -57,9 +57,7 @@ export class PagesController {
     @Param('workId') workId: string,
     @OptionalGetUser() user: User | null = null,
   ) {
-    return user
-      ? this.pagesService.getAllPages(workId, user.id)
-      : this.pagesService.getAllPages(workId);
+    return this.pagesService.getAllPages(workId, user?.id);
   }
 
   @Get('works/:workId/pages/pending')
@@ -81,14 +79,12 @@ export class PagesController {
   @ApiOperation({ summary: 'Get specific page by number' })
   @ApiResponse({ status: 200, description: 'Page details' })
   @ApiResponse({ status: 404, description: 'Page not found' })
-  getById(
+  getByNumber(
     @Param('workId') workId: string,
     @Param('number', ParseIntPipe) number: number,
     @OptionalGetUser() user: User | null = null,
   ) {
-    return user
-      ? this.pagesService.getById(workId, number, user.id)
-      : this.pagesService.getById(workId, number);
+    return this.pagesService.getByNumber(workId, number, user?.id);
   }
 
   @Patch('pages/:id')
