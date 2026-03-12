@@ -179,7 +179,7 @@ describe('AuthController', () => {
   });
 
   describe('deleteMe', () => {
-    it('should call authService.deleteAccount with user id only', async () => {
+    it('should call authService.deleteAccount with user id and clear cookies', async () => {
       const mockUser: User = {
         id: 'user-id',
         email: 'test@example.com',
@@ -193,14 +193,21 @@ describe('AuthController', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
       };
+      const mockRes = { clearCookie: jest.fn() } as any;
 
       mockAuthService.deleteAccount.mockResolvedValue({
         message: 'Account deleted successfully',
       });
 
-      const result = await controller.deleteMe(mockUser);
+      const result = await controller.deleteMe(mockUser, mockRes);
 
       expect(mockAuthService.deleteAccount).toHaveBeenCalledWith(mockUser.id);
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('access_token', {
+        path: '/',
+      });
+      expect(mockRes.clearCookie).toHaveBeenCalledWith('refresh_token', {
+        path: '/',
+      });
       expect(result).toEqual({ message: 'Account deleted successfully' });
     });
   });

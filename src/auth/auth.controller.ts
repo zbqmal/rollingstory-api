@@ -107,8 +107,14 @@ export class AuthController {
   @ApiOperation({ summary: 'Delete current user account' })
   @ApiResponse({ status: 200, description: 'Account deleted successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async deleteMe(@GetUser() user: User) {
-    return this.authService.deleteAccount(user.id);
+  async deleteMe(
+    @GetUser() user: User,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.authService.deleteAccount(user.id);
+    res.clearCookie('access_token', { path: '/' });
+    res.clearCookie('refresh_token', { path: '/' });
+    return result;
   }
 
   @Post('verify-email')
